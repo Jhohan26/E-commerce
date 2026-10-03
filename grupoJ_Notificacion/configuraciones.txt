@@ -1,0 +1,106 @@
+CONFIGURACIONES DEL MICROSERVICIO DE NOTIFICACIONES — GRUPO J
+Fecha: 3 de octubre de 2026
+
+1. LENGUAJES Y FORMATOS
+JavaScript: backend, consumidor RabbitMQ, frontend y pruebas.
+HTML5 y CSS3: estructura y presentación de la interfaz web.
+SQL: persistencia de notificaciones y esquema de referencia MySQL.
+JSON: contratos de eventos, respuestas REST y configuración npm.
+YAML: definición de los servicios en Docker Compose.
+
+2. ENTORNO Y FRAMEWORK
+Node.js: versión requerida 24 o superior; backend con módulos ES.
+Express: framework HTTP, API REST y archivos estáticos del frontend.
+Frontend: HTML, CSS y JavaScript nativos, sin framework adicional.
+
+3. BIBLIOTECAS
+Dependencias declaradas en package.json:
+- express ^5.1.0: rutas HTTP y API REST.
+- amqplib ^0.10.9: conexión AMQP, publicación y consumo RabbitMQ.
+- jsdom ^29.1.1: dependencia de desarrollo para pruebas del frontend.
+Las versiones exactas instaladas están fijadas en package-lock.json.
+
+Módulos integrados de Node.js:
+- node:sqlite: base de datos SQLite mediante DatabaseSync.
+- node:crypto: SHA-256 para deduplicar eventos.
+- node:fs y node:fs/promises: lectura y gestión de archivos.
+- node:path y node:url: resolución de rutas.
+- node:test y node:assert/strict: ejecución y validación de pruebas.
+- node:os: directorio temporal utilizado en pruebas.
+
+4. HERRAMIENTAS Y SERVICIOS
+npm: instalación de dependencias y ejecución de scripts.
+Docker y Docker Compose: construcción y despliegue en contenedores.
+Imagen de aplicación: node:24-bookworm-slim.
+RabbitMQ: mensajería asincrónica; imagen rabbitmq:4.2-management.
+RabbitMQ Management: panel administrativo del broker.
+PowerShell: comandos de ejecución y comprobación en Windows.
+
+5. PUERTOS
+API REST y frontend:
+- Puerto interno del contenedor: 3000/TCP.
+- Puerto externo usado en este computador: 3010/TCP.
+- URL local usada: http://localhost:3010/.
+- Compose local y .env.example: puerto externo predeterminado 3000.
+- Compose de integración: puerto externo predeterminado 3010.
+- HOST_PORT permite cambiar el puerto externo; PORT controla Node local.
+
+RabbitMQ:
+- 5672/TCP: conexión AMQP de productores y consumidores.
+- 15672/TCP: panel administrativo en http://localhost:15672/.
+Los puertos del Compose están publicados en 127.0.0.1.
+
+SQLite:
+- No utiliza puerto de red; es una base embebida en un archivo.
+
+MySQL:
+- No está conectado ni es necesario para ejecutar esta versión.
+- database/mysql/001_notificacion.sql es un esquema de referencia.
+- Si el equipo migra a MySQL, debe confirmar host, puerto y credenciales.
+
+6. BASE DE DATOS ACTIVA
+Motor: SQLite mediante node:sqlite.
+Ruta local predeterminada: ./data/notificaciones.sqlite.
+Ruta en Docker: /app/data/notificaciones.sqlite.
+Volumen Docker: notificaciones_data.
+Tabla: Notificacion.
+Referencias lógicas: Cliente_id y Pedido_id.
+Los eventos y la API conservan los nombres clienteId y pedidoId.
+
+7. CONFIGURACIÓN RABBITMQ
+Exchange predeterminado: comercio.eventos, tipo topic, durable.
+Cola: grupo-j.notificaciones, durable.
+Eventos consumidos y routing keys predeterminadas:
+PedidoCreado, PagoAprobado, PagoRechazado, FacturaGenerada,
+InventarioInsuficiente.
+Cola de errores: grupo-j.notificaciones.errores.
+Exchange de errores: grupo-j.notificaciones.errores.exchange.
+Prefetch: 10. Pausa de reconexión: 5000 milisegundos.
+Confirmación manual ACK después del almacenamiento correcto.
+Los nombres y contratos deben coordinarse con los otros grupos.
+
+8. ARCHIVOS Y VARIABLES
+.env.example: plantilla para la ejecución local.
+.env.integracion.example: plantilla para el broker compartido.
+Variables principales: PORT, HOST_PORT, DATABASE_PATH, RABBITMQ_URL,
+RABBITMQ_EXCHANGE, RABBITMQ_EXCHANGE_TYPE, RABBITMQ_QUEUE,
+RABBITMQ_BINDINGS, RABBITMQ_PREFETCH y RABBITMQ_RECONNECT_MS.
+RABBITMQ_PASSWORD permite personalizar la contraseña del broker local.
+Los archivos .env con valores locales no se incluyen en el ZIP.
+
+9. EJECUCIÓN Y PRUEBAS
+Con Docker: docker compose up -d --build
+Para usar puerto 3010, copiar .env.example a .env y poner HOST_PORT=3010.
+Frontend: http://localhost:3010/ (o el puerto externo configurado).
+API: /api/notificaciones
+Instalación local: npm ci
+Ejecución local: npm start (requiere RabbitMQ disponible).
+Pruebas locales: npm test
+Integración con RabbitMQ: npm run test:integration
+Publicar ejemplo: npm run publish -- examples/PedidoCreado.json
+
+10. ALCANCE
+La versión ejecutable incluye API, bandeja web, SQLite y consumidor RabbitMQ.
+MySQL conectado, correo SMTP y autenticación por cliente no están implementados.
+Este archivo describe la configuración; las variables ejecutables se definen
+en las plantillas .env y en los archivos Docker Compose.
