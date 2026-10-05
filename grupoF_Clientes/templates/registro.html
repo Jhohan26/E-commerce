@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Registro{% endblock %}
+{% block contenido %}
+<h1>Crear cuenta</h1>
+<form method="post" action="/registro">
+	<label>Primer nombre <input name="primer_nombre" maxlength="45" required value="{{ datos.primer_nombre or '' }}"></label>
+	<label>Segundo nombre <small>(opcional)</small> <input name="segundo_nombre" maxlength="45" value="{{ datos.segundo_nombre or '' }}"></label>
+	<label>Primer apellido <input name="primer_apellido" maxlength="45" required value="{{ datos.primer_apellido or '' }}"></label>
+	<label>Segundo apellido <small>(opcional)</small> <input name="segundo_apellido" maxlength="45" value="{{ datos.segundo_apellido or '' }}"></label>
+	<label>Correo <input type="email" name="correo" maxlength="127" required value="{{ datos.correo or '' }}"></label>
+	<label>Contraseña <small>(mín. 8 caracteres)</small> <input type="password" name="password" minlength="8" required></label>
+	<button type="submit">Registrarme</button>
+</form>
+<p class="link">¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
+{% endblock %}

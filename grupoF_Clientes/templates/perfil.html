@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titulo %}Mi perfil{% endblock %}
+{% block contenido %}
+<h1>Mi información</h1>
+<form method="post" action="/perfil">
+	<label>Primer nombre <input name="primer_nombre" maxlength="45" required value="{{ cliente.primer_nombre or '' }}"></label>
+	<label>Segundo nombre <input name="segundo_nombre" maxlength="45" value="{{ cliente.segundo_nombre or '' }}"></label>
+	<label>Primer apellido <input name="primer_apellido" maxlength="45" required value="{{ cliente.primer_apellido or '' }}"></label>
+	<label>Segundo apellido <input name="segundo_apellido" maxlength="45" value="{{ cliente.segundo_apellido or '' }}"></label>
+	<label>Correo <input type="email" name="correo" maxlength="127" required value="{{ cliente.correo or '' }}"></label>
+	<label>Nueva contraseña <small>(déjala vacía para no cambiarla)</small> <input type="password" name="nueva_password" minlength="8"></label>
+	<button type="submit">Guardar cambios</button>
+</form>
+<form method="post" action="/logout">
+	<button type="submit" class="sec">Cerrar sesión</button>
+</form>
+{% endblock %}
