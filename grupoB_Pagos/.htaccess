@@ -1,0 +1,11 @@
+Options -Indexes
+DirectoryIndex index.php
+RewriteEngine On
+RewriteRule ^(?!public(?:/|$)|index\.php$).+ - [F,L,NC]
+RewriteRule ^(?:src|bin|tests|examples|vendor|var|docs)(?:/|$) - [F,L,NC]
+<FilesMatch "^(\..*|composer\.(json|lock)|bootstrap\.php|README\.md)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^_.*\.php$">
+    Require all denied
+</FilesMatch>
