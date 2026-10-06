@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventario</title>
+<style>
+  :root {
+    --bg:#f5f6f8; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e4e7ee;
+    --ok:#177245; --ok-bg:#e3f4ea; --warn:#9a6700; --warn-bg:#fff3d1; --bad:#b42318; --bad-bg:#fde7e5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151c; --card:#1b1f29; --text:#e8ebf2; --muted:#98a0b3; --line:#2b3140;
+      --ok:#5fd394; --ok-bg:#16301f; --warn:#f2c14e; --warn-bg:#3a2f12; --bad:#ff8f84; --bad-bg:#40191a; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:24px 16px; background:var(--bg); color:var(--text);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:880px; margin:0 auto; }
+  header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; }
+  h1 { margin:0; font-size:22px; }
+  .estado { font-size:13px; color:var(--muted); }
+  .punto { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ok); margin-right:6px; }
+  .punto.off { background:var(--bad); }
+  .resumen { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:18px 0; }
+  .tarjeta { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; }
+  .tarjeta span { display:block; font-size:12px; color:var(--muted); }
+  .tarjeta strong { font-size:24px; }
+  input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+          background:var(--card); color:var(--text); font:inherit; margin-bottom:12px; }
+  .tabla { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:11px 16px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  tr:last-child td { border-bottom:0; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .b-ok { color:var(--ok); background:var(--ok-bg); }
+  .b-bajo { color:var(--warn); background:var(--warn-bg); }
+  .b-agotado { color:var(--bad); background:var(--bad-bg); }
+  .vacio { padding:28px; text-align:center; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Inventario de productos</h1>
+    <div class="estado"><span id="punto" class="punto"></span><span id="estado">Cargando…</span></div>
+  </header>
+
+  <section class="resumen">
+    <div class="tarjeta"><span>Productos</span><strong id="r-productos">–</strong></div>
+    <div class="tarjeta"><span>Unidades totales</span><strong id="r-unidades">–</strong></div>
+    <div class="tarjeta"><span>Stock bajo</span><strong id="r-bajo">–</strong></div>
+    <div class="tarjeta"><span>Agotados</span><strong id="r-agotado">–</strong></div>
+  </section>
+
+  <input id="buscar" type="search" placeholder="Buscar por nombre o ID…" autocomplete="off">
+
+  <div class="tabla">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Producto</th><th class="num">Cantidad</th><th>Estado</th><th>Actualizado</th></tr>
+      </thead>
+      <tbody id="filas"></tbody>
+    </table>
+    <div id="vacio" class="vacio" hidden>No hay productos para mostrar.</div>
+  </div>
+</main>
+
+<script>
+  let datos = [];
+  let stockBajo = 10;
+  const $ = (id) => document.getElementById(id);
+
+  function nivel(c) { return c <= 0 ? "agotado" : c <= stockBajo ? "bajo" : "ok"; }
+  const etiqueta = { ok: "Disponible", bajo: "Stock bajo", agotado: "Agotado" };
+
+  function celda(tr, texto, clase) {
+    const td = document.createElement("td");
+    td.textContent = texto;
+    if (clase) td.className = clase;
+    tr.appendChild(td);
+    return td;
+  }
+
+  function pintar() {
+    const q = $("buscar").value.trim().toLowerCase();
+    const lista = datos.filter(p =>
+      String(p.producto_id).includes(q) || (p.nombre || "").toLowerCase().includes(q));
+
+    const tbody = $("filas");
+    tbody.replaceChildren();
+    for (const p of lista) {
+      const tr = document.createElement("tr");
+      celda(tr, p.producto_id);
+      celda(tr, p.nombre || "Producto #" + p.producto_id);
+      celda(tr, p.cantidad.toLocaleString("es-CO"), "num");
+      const td = document.createElement("td");
+      const b = document.createElement("span");
+      const n = nivel(p.cantidad);
+      b.className = "badge b-" + n;
+      b.textContent = etiqueta[n];
+      td.appendChild(b);
+      tr.appendChild(td);
+      celda(tr, p.actualizado ? new Date(p.actualizado).toLocaleString("es-CO") : "–");
+      tbody.appendChild(tr);
+    }
+    $("vacio").hidden = lista.length > 0;
+
+    $("r-productos").textContent = datos.length;
+    $("r-unidades").textContent = datos.reduce((s, p) => s + p.cantidad, 0).toLocaleString("es-CO");
+    $("r-bajo").textContent = datos.filter(p => nivel(p.cantidad) === "bajo").length;
+    $("r-agotado").textContent = datos.filter(p => nivel(p.cantidad) === "agotado").length;
+  }
+
+  async function cargar() {
+    try {
+      const r = await fetch("/api/inventario");
+      if (!r.ok) throw new Error(r.status);
+      datos = await r.json();
+      $("punto").className = "punto";
+      $("estado").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO");
+      pintar();
+    } catch (e) {
+      $("punto").className = "punto off";
+      $("estado").textContent = "Sin conexión con el servicio";
+    }
+  }
+
+  (async () => {
+    try { stockBajo = (await (await fetch("/api/config")).json()).stock_bajo; } catch (e) {}
+    $("buscar").addEventListener("input", pintar);
+    await cargar();
+    setInterval(cargar, 5000);   // refresco automático cada 5 s
+  })();
+</script>
+</body>
+</html>
