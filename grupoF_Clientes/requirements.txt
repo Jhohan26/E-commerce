@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+pymysql
+bcrypt
+itsdangerous
+python-dotenv
+pika
