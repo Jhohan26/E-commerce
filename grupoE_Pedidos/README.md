@@ -290,3 +290,4 @@ npm run test-consumer
 ```
 
 Crea un pedido desde la interfaz web o mediante `POST /api/pedidos` y verás el evento recibido en tiempo real con su `ACK`.
+
