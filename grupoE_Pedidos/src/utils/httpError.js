@@ -1,0 +1,10 @@
+// Error personalizado con código de estado HTTP
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
+module.exports = { HttpError };

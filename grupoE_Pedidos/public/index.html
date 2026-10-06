@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedidos | Plataforma de comercio</title>
+  <meta name="description" content="Gestión de pedidos del microservicio de Pedidos.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=2.2">
+</head>
+<body>
+
+  <!-- Iconos (sprite SVG) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-logo" viewBox="0 0 24 24"><path d="M12 2.5 3.5 7.2v9.6L12 21.5l8.5-4.7V7.2L12 2.5Zm0 0v9.2m0 0L3.8 7.2M12 11.7l8.2-4.5M12 11.7v9.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 20 20"><path d="M16.5 10a6.5 6.5 0 1 1-2-4.7M16.5 3.5v3.3h-3.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-search" viewBox="0 0 20 20"><path d="m13.5 13.5 3.5 3.5M8.8 14.6a5.8 5.8 0 1 1 0-11.6 5.8 5.8 0 0 1 0 11.6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+      <symbol id="i-close" viewBox="0 0 20 20"><path d="m5 5 10 10M15 5 5 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-more" viewBox="0 0 20 20"><circle cx="10" cy="4.5" r="1.5" fill="currentColor"/><circle cx="10" cy="10" r="1.5" fill="currentColor"/><circle cx="10" cy="15.5" r="1.5" fill="currentColor"/></symbol>
+      <symbol id="i-chev-l" viewBox="0 0 20 20"><path d="m12 5-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-chev-r" viewBox="0 0 20 20"><path d="m8 5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-check" viewBox="0 0 20 20"><path d="m4.5 10.5 3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 20 20"><path d="M10 6v5m0 3.2v.1M10 2.5 18 16.5H2L10 2.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-info" viewBox="0 0 20 20"><path d="M10 9v5m0-8.2v.1M10 17.5a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+      <symbol id="i-minus" viewBox="0 0 20 20"><path d="M5 10h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <!-- Productos -->
+      <symbol id="p-laptop" viewBox="0 0 24 24"><path d="M5 6.5A1.5 1.5 0 0 1 6.5 5h11A1.5 1.5 0 0 1 19 6.5V15H5V6.5ZM2.5 15h19l-1.2 2.6a1 1 0 0 1-.9.6H4.6a1 1 0 0 1-.9-.6L2.5 15Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+      <symbol id="p-mouse" viewBox="0 0 24 24"><path d="M12 3a5.5 5.5 0 0 1 5.5 5.5v7a5.5 5.5 0 0 1-11 0v-7A5.5 5.5 0 0 1 12 3Zm0 0v5.5M6.5 9.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+      <symbol id="p-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="19" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 10h.01M9 10h.01M12 10h.01M15 10h.01M18 10h.01M7.5 14h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+      <symbol id="p-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 16v4M8 20h8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+      <symbol id="p-headphones" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2v-3Zm16 0a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2v-3Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+      <symbol id="p-box" viewBox="0 0 24 24"><path d="M12 3 4 7.3v9.4L12 21l8-4.3V7.3L12 3Zm0 0v0M4.3 7.4 12 11.7l7.7-4.3M12 11.7V21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- Barra superior -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="Pedidos, inicio">
+        <span class="brand-mark"><svg width="20" height="20"><use href="#i-logo"/></svg></span>
+        <span class="brand-text">
+          <span class="brand-name">Pedidos</span>
+          <span class="brand-context">Plataforma de comercio</span>
+        </span>
+      </a>
+
+      <div class="services" id="services" role="status" aria-live="polite" aria-label="Estado de los servicios">
+        <span class="service" id="svc-api" data-state="checking">
+          <span class="service-dot" aria-hidden="true"></span>
+          <span class="service-name">API</span>
+          <span class="service-state sr-only">Verificando</span>
+        </span>
+        <span class="service" id="svc-mysql" data-state="checking">
+          <span class="service-dot" aria-hidden="true"></span>
+          <span class="service-name">MySQL</span>
+          <span class="service-state sr-only">Verificando</span>
+        </span>
+        <span class="service" id="svc-rabbit" data-state="checking">
+          <span class="service-dot" aria-hidden="true"></span>
+          <span class="service-name">RabbitMQ</span>
+          <span class="service-state sr-only">Verificando</span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main class="page" id="contenido">
+
+    <div class="page-head">
+      <div>
+        <h1>Pedidos</h1>
+        <p class="page-lead">Consulta, crea y gestiona los pedidos de tu tienda.</p>
+      </div>
+      <button type="button" class="btn btn-primary" id="btn-new">
+        <svg class="icon" width="16" height="16" aria-hidden="true"><use href="#i-plus"/></svg>
+        Nuevo pedido
+      </button>
+    </div>
+
+    <!-- Indicadores -->
+    <section class="kpis" aria-label="Resumen de pedidos">
+      <div class="kpi">
+        <span class="kpi-label">Total de pedidos</span>
+        <span class="kpi-value" id="kpi-total">0</span>
+        <span class="kpi-note">En todos los estados</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Pendientes</span>
+        <span class="kpi-value" id="kpi-pendientes">0</span>
+        <span class="kpi-note">Esperando pago</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Pagados o despachados</span>
+        <span class="kpi-value" id="kpi-pagados">0</span>
+        <span class="kpi-note">Pagado, enviado o completado</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Ventas totales</span>
+        <span class="kpi-value" id="kpi-monto">$ 0</span>
+        <span class="kpi-note">Suma de todos los pedidos (COP)</span>
+      </div>
+    </section>
+
+    <!-- Listado -->
+    <section class="panel" aria-labelledby="listado-titulo">
+      <div class="toolbar">
+        <h2 id="listado-titulo" class="toolbar-title">Listado de pedidos</h2>
+
+        <div class="toolbar-controls">
+          <label class="search" for="search">
+            <svg class="icon" width="16" height="16" aria-hidden="true"><use href="#i-search"/></svg>
+            <span class="sr-only">Buscar pedidos</span>
+            <input id="search" type="search" placeholder="Buscar por pedido o cliente" autocomplete="off">
+          </label>
+
+          <label class="select-wrap" for="filter-estado">
+            <span class="sr-only">Filtrar por estado</span>
+            <select id="filter-estado" class="control">
+              <option value="TODOS">Todos los estados</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="EN_PROCESO">En proceso</option>
+              <option value="PAGADO">Pagado</option>
+              <option value="ENVIADO">Enviado</option>
+              <option value="COMPLETADO">Completado</option>
+              <option value="CANCELADO">Cancelado</option>
+            </select>
+          </label>
+
+          <button type="button" class="btn btn-quiet btn-icon-text" id="btn-refresh">
+            <svg class="icon" id="refresh-icon" width="16" height="16" aria-hidden="true"><use href="#i-refresh"/></svg>
+            <span>Actualizar</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Pedido</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">Fecha</th>
+              <th scope="col" class="num">Unidades</th>
+              <th scope="col" class="num">Total (COP)</th>
+              <th scope="col">Estado</th>
+              <th scope="col" class="col-actions"><span class="sr-only">Acciones</span></th>
+            </tr>
+          </thead>
+          <tbody id="orders-body">
+            <!-- Se llena con JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-foot">
+        <span class="foot-info" id="foot-info" aria-live="polite"></span>
+        <div class="pager">
+          <button type="button" class="btn btn-quiet btn-sm" id="pg-prev" aria-label="Página anterior">
+            <svg class="icon" width="16" height="16" aria-hidden="true"><use href="#i-chev-l"/></svg>
+          </button>
+          <span class="pager-page" id="pg-label">Página 1 de 1</span>
+          <button type="button" class="btn btn-quiet btn-sm" id="pg-next" aria-label="Página siguiente">
+            <svg class="icon" width="16" height="16" aria-hidden="true"><use href="#i-chev-r"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-foot">
+    <span>Pedidos · versión 1.0</span>
+    <span id="last-update">Sin actualizar</span>
+  </footer>
+
+  <!-- Menú contextual de fila -->
+  <div class="menu" id="row-menu" role="menu" hidden>
+    <button type="button" role="menuitem" data-action="detail">Ver detalle</button>
+    <button type="button" role="menuitem" data-action="status">Cambiar estado</button>
+    <button type="button" role="menuitem" data-action="resend">Reenviar evento</button>
+  </div>
+
+  <!-- Panel lateral: nuevo pedido -->
+  <dialog class="drawer" id="drawer-new" aria-labelledby="new-title">
+    <form id="order-form" class="drawer-form" novalidate>
+      <header class="drawer-head">
+        <div>
+          <h2 id="new-title">Nuevo pedido</h2>
+          <p class="drawer-sub">Selecciona el cliente y los productos del pedido.</p>
+        </div>
+        <button type="button" class="icon-btn" data-close aria-label="Cerrar panel">
+          <svg width="18" height="18" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </header>
+
+      <div class="drawer-body">
+        <div class="alert alert-error" id="form-error" role="alert" hidden></div>
+
+        <!-- Cliente -->
+        <div class="field">
+          <label for="cliente-id">Cliente</label>
+          <input id="cliente-id" class="control control-mono" type="number" inputmode="numeric" min="1" step="1" placeholder="Escribe el ID o elige de la lista" list="clientes-datalist" autocomplete="off" required>
+          <datalist id="clientes-datalist"></datalist>
+          <div class="client-card" id="client-card" hidden>
+            <span class="client-avatar" id="client-avatar" aria-hidden="true"></span>
+            <span class="client-info">
+              <strong id="client-name"></strong>
+              <span id="client-meta"></span>
+            </span>
+            <span class="client-check" id="client-check" aria-hidden="true"><svg width="16" height="16"><use href="#i-check"/></svg></span>
+          </div>
+          <p class="field-help" id="cliente-help">Debe existir en el servicio de Clientes.</p>
+          <p class="field-error" id="err-cliente" hidden></p>
+        </div>
+
+        <!-- Productos -->
+        <fieldset class="lines">
+          <legend>Productos</legend>
+          <div id="lines-list"></div>
+          <datalist id="productos-datalist"></datalist>
+
+          <button type="button" class="btn btn-quiet btn-sm" id="btn-add-line">
+            <svg class="icon" width="16" height="16" aria-hidden="true"><use href="#i-plus"/></svg>
+            Agregar producto
+          </button>
+        </fieldset>
+
+        <div class="order-total">
+          <span>Total del pedido</span>
+          <strong id="form-total">$ 0</strong>
+        </div>
+
+        <!-- Detalle técnico: cerrado por defecto -->
+        <details class="event-box" id="event-box">
+          <summary>
+            <span>Ver evento técnico (JSON)</span>
+          </summary>
+          <pre class="code" id="event-preview" tabindex="0" aria-label="Vista previa del evento en formato JSON"></pre>
+          <p class="field-help">Mensaje <code>PedidoCreado</code> que se enviará a los servicios de Inventario, Pagos, Notificaciones y Reportes.</p>
+        </details>
+      </div>
+
+      <footer class="drawer-foot">
+        <!-- Oculto: se muestra con ?demo=1 en la URL o con Ctrl + Shift + E -->
+        <button type="button" class="btn btn-quiet" id="btn-example" hidden>Cargar ejemplo del taller</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit">Crear pedido</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Panel lateral: detalle -->
+  <dialog class="drawer" id="drawer-detail" aria-labelledby="detail-title">
+    <div class="drawer-form">
+      <header class="drawer-head">
+        <div>
+          <h2 id="detail-title">Pedido</h2>
+          <p class="drawer-sub" id="detail-sub"></p>
+        </div>
+        <button type="button" class="icon-btn" data-close aria-label="Cerrar panel">
+          <svg width="18" height="18" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </header>
+
+      <div class="drawer-body" id="detail-body"></div>
+
+      <footer class="drawer-foot">
+        <button type="button" class="btn" id="detail-resend">Reenviar evento</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-primary" id="detail-status">Cambiar estado</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Diálogo: cambiar estado -->
+  <dialog class="modal" id="dlg-status" aria-labelledby="status-title">
+    <form method="dialog" id="status-form" class="modal-form">
+      <h2 id="status-title">Cambiar estado</h2>
+      <p class="modal-text" id="status-text"></p>
+
+      <div class="field">
+        <label for="status-select">Nuevo estado</label>
+        <select id="status-select" class="control"></select>
+      </div>
+
+      <div class="alert alert-error" id="status-error" role="alert" hidden></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="status-save">Guardar cambio</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Notificaciones -->
+  <div class="toasts" id="toasts" popover="manual" aria-live="polite" aria-atomic="false"></div>
+
+  <script type="module" src="js/app.js?v=2.2"></script>
+</body>
+</html>
