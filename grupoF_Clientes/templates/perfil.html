@@ -9,6 +9,11 @@
 	<label>Segundo apellido <input name="segundo_apellido" maxlength="45" value="{{ cliente.segundo_apellido or '' }}"></label>
 	<label>Correo <input type="email" name="correo" maxlength="127" required value="{{ cliente.correo or '' }}"></label>
 	<label>Nueva contraseña <small>(déjala vacía para no cambiarla)</small> <input type="password" name="nueva_password" minlength="8"></label>
+	{% if es_admin %}
+	<a href="/admin/clientes">
+		<button type="button" class="sec" style="background:#7c3aed;">Administrar clientes</button>
+	</a>
+	{% endif %}
 	<button type="submit">Guardar cambios</button>
 </form>
 <form method="post" action="/logout">

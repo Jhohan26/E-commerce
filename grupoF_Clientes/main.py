@@ -26,6 +26,12 @@ DB_CONFIG = dict(
 	cursorclass=DictCursor,
 )
 
+ADMIN_CORREOS = {
+	c.strip().lower()
+	for c in os.getenv("ADMIN_CORREOS", "").split(",")
+	if c.strip()
+}
+
 SECRET_KEY = os.getenv("SECRET_KEY", "cookie")
 
 app = FastAPI(title="Clientes")
@@ -78,7 +84,11 @@ def cliente_actual(request: Request, db):
 		return None
 	with db.cursor() as cur:
 		cur.execute(f"SELECT {CAMPOS_PUBLICOS} FROM Cliente WHERE id = %s", (cid,))
-		return cur.fetchone()
+		cliente = cur.fetchone()
+	if not cliente or cliente["estado"] == 0:
+		request.session.clear()
+		return None
+	return cliente
 
 
 def render(request: Request, nombre: str, **ctx):
@@ -180,7 +190,8 @@ def perfil(request: Request, guardado: int = 0, db=Depends(get_db)):
 	if not cliente:
 		return RedirectResponse("/login", status_code=303)
 	ok = "Datos actualizados correctamente." if guardado else None
-	return render(request, "perfil.html", cliente=cliente, ok=ok)
+	es_admin = cliente["correo"] in ADMIN_CORREOS
+	return render(request, "perfil.html", cliente=cliente, ok=ok, es_admin=es_admin)
 
 
 @app.post("/perfil")
@@ -197,6 +208,8 @@ def actualizar_perfil(
 	cliente = cliente_actual(request, db)
 	if not cliente:
 		return RedirectResponse("/login", status_code=303)
+
+	es_admin = cliente["correo"] in ADMIN_CORREOS
 
 	datos = dict(
 		id=cliente["id"],
@@ -264,3 +277,49 @@ def api_cliente(
 	if not fila:
 		raise HTTPException(status_code=404, detail="Cliente no encontrado")
 	return fila
+
+
+
+
+def obtener_admin(request: Request, db):
+	admin = cliente_actual(request, db)
+	if not admin:
+		raise HTTPException(status_code=303, headers={"Location": "/login"})
+	if admin["correo"] not in ADMIN_CORREOS:
+		raise HTTPException(status_code=403, detail="No autorizado")
+	return admin
+
+
+@app.get("/admin/clientes")
+def admin_clientes(request: Request, db=Depends(get_db)):
+	admin = obtener_admin(request, db)
+	with db.cursor() as cur:
+		cur.execute(f"SELECT {CAMPOS_PUBLICOS} FROM Cliente ORDER BY id")
+		clientes = cur.fetchall()
+	return render(request, "admin_clientes.html", clientes=clientes, admin=admin)
+
+
+@app.post("/admin/clientes/{cliente_id}/estado")
+def cambiar_estado(
+	request: Request,
+	cliente_id: int,
+	estado: int = Form(...),
+	db=Depends(get_db),
+):
+	admin = obtener_admin(request, db)
+	if estado not in (0, 1):
+		raise HTTPException(status_code=400, detail="Estado inválido")
+	if cliente_id == admin["id"]:
+		raise HTTPException(status_code=400, detail="No puedes deshabilitar tu propia cuenta")
+
+	with db.cursor() as cur:
+		cur.execute("UPDATE Cliente SET estado = %s WHERE id = %s", (estado, cliente_id))
+	db.commit()
+	return RedirectResponse("/admin/clientes", status_code=303)
+
+
+@app.get("/clientes")
+def api_clientes(db=Depends(get_db)):
+	with db.cursor() as cur:
+		cur.execute(f"SELECT {CAMPOS_PUBLICOS} FROM Cliente ORDER BY id")
+		return cur.fetchall()

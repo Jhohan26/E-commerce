@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titulo %}Administrar clientes{% endblock %}
+{% block contenido %}
+<style>
+	main { max-width: 960px; }
+	.tabla { overflow-x: auto; }
+	table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+	th, td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; white-space: nowrap; }
+	.chip { padding: 2px 8px; border-radius: 999px; font-size: .8rem; }
+	.activo { background: #dcfce7; color: #166534; }
+	.inactivo { background: #fee2e2; color: #991b1b; }
+	td button { width: auto; margin: 0; padding: 5px 12px; font-size: .85rem; }
+	td button.rojo { background: #dc2626; }
+	td button.verde { background: #16a34a; }
+</style>
+
+<h1>Clientes ({{ clientes|length }})</h1>
+<p><a href="/perfil">← Volver a mi perfil</a></p>
+
+<div class="tabla">
+	<table>
+		<thead>
+			<tr><th>ID</th><th>Nombre</th><th>Correo</th><th>Estado</th><th>Acción</th></tr>
+		</thead>
+		<tbody>
+		{% for c in clientes %}
+			<tr>
+				<td>{{ c.id }}</td>
+				<td>{{ c.primer_nombre }} {{ c.segundo_nombre or '' }} {{ c.primer_apellido }} {{ c.segundo_apellido or '' }}</td>
+				<td>{{ c.correo }}</td>
+				<td>
+					{% if c.estado == 0 %}
+						<span class="chip inactivo">Deshabilitado</span>
+					{% else %}
+						<span class="chip activo">Activo</span>
+					{% endif %}
+				</td>
+				<td>
+					{% if c.id == admin.id %}
+						<small>(tú)</small>
+					{% else %}
+					<form method="post" action="/admin/clientes/{{ c.id }}/estado">
+						{% if c.estado == 0 %}
+							<input type="hidden" name="estado" value="1">
+							<button type="submit" class="verde">Habilitar</button>
+						{% else %}
+							<input type="hidden" name="estado" value="0">
+							<button type="submit" class="rojo">Deshabilitar</button>
+						{% endif %}
+					</form>
+					{% endif %}
+				</td>
+			</tr>
+		{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endblock %}
