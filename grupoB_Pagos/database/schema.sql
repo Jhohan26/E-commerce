@@ -1,0 +1,13 @@
+CREATE DATABASE IF NOT EXISTS db_pagos;
+USE db_pagos;
+
+CREATE TABLE pagos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pedido_id INT NOT NULL UNIQUE,
+    cliente_id INT NOT NULL,
+    total DECIMAL(12,2) NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    motivo_rechazo VARCHAR(150) NULL,
+    fecha_procesamiento DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    evento_publicado TINYINT(1) NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
