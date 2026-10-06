@@ -4,7 +4,18 @@
     pip install -r requirements.txt
     uvicorn main:app --reload
 
-Páginas: /registro, /login, /perfil
+## Páginas
+ 
+| Ruta               | Descripción                                             | Acceso            |
+|--------------------|---------------------------------------------------------|-------------------|
+| `/registro`        | Crear una cuenta                                        | Público           |
+| `/login`           | Iniciar sesión                                          | Público           |
+| `/perfil`          | Ver y editar los datos propios                          | Usuario con sesión|
+| `/admin/clientes`  | Listar clientes y habilitarlos o deshabilitarlos        | Solo administradores |
+ 
+Un cliente deshabilitado (`estado = 0`) no puede iniciar sesión, y si ya tenía una sesión abierta se cierra en su siguiente petición. Un administrador no puede deshabilitar su propia cuenta.
+ 
+El botón "Administrar clientes" aparece en `/perfil` solo para los correos incluidos en `ADMIN_CORREOS`.
 
 ## API
     curl -X POST http://localhost:8000/cliente \
@@ -19,11 +30,12 @@ API para consultar la información de un cliente a partir de su `id`.
 
 ## Endpoint
 
-| Método | Ruta       | Autenticación |
-|--------|------------|---------------|
-| `POST` | `/cliente` | Ninguna       |
+| Método | Ruta        | Autenticación |
+|--------|-------------|---------------|
+| `POST` | `/cliente`  | Ninguna       |
+| `POST` | `/clientes` | Ninguna       |
 
-**URL base (desarrollo):** `http://localhost:8000`
+**La ruta /clientes devuelve una lista con la informacion de los usuarios de la misma manera que en un solo cliente**
 
 ## Petición
 
