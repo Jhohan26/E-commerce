@@ -4,6 +4,10 @@ services:
     build: .
     environment:
       RABBITMQ_URL: ${RABBITMQ_URL:?Define la URL del RabbitMQ compartido en .env.integracion}
+      RABBITMQ_REQUIRE_TLS: "true"
+      RABBITMQ_SOURCES: ${RABBITMQ_SOURCES:?Define las fuentes de eventos en .env.integracion}
+      RABBITMQ_HEARTBEAT: ${RABBITMQ_HEARTBEAT:-30}
+      RABBITMQ_MAX_MESSAGE_BYTES: ${RABBITMQ_MAX_MESSAGE_BYTES:-262144}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-comercio.eventos}
       RABBITMQ_EXCHANGE_TYPE: ${RABBITMQ_EXCHANGE_TYPE:-topic}
       RABBITMQ_QUEUE: ${RABBITMQ_QUEUE:-grupo-j.notificaciones}
