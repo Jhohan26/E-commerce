@@ -46,7 +46,6 @@ test('RabbitMQ real → consumidor → SQLite → HTTP, DLQ y recuperación', { 
     await new Promise(r => server.once('listening', r));
     const response = await fetch(`http://127.0.0.1:${server.address().port}/api/notificaciones/cliente/25`);
     assert.equal((await response.json()).length, 5);
-    // El frontend real ejecuta su JavaScript y consume las filas creadas por RabbitMQ.
     const base = `http://127.0.0.1:${server.address().port}`;
     const dom = new JSDOM(readFileSync(new URL('../../public/index.html', import.meta.url), 'utf8'), { url: base, runScripts: 'outside-only' });
     try {
@@ -67,12 +66,10 @@ test('RabbitMQ real → consumidor → SQLite → HTTP, DLQ y recuperación', { 
     assert.equal((await channel.checkQueue(config.queue)).messageCount, 1);
     consumer.stopped = false; consumer.start();
     await until(() => repo.list().length === 6);
-    // Publicación duplicada: mismo contenido no crea otra fila.
     channel.publish(config.exchange, extra.evento, Buffer.from(JSON.stringify(extra)), { persistent: true });
     await channel.waitForConfirms();
     await until(async () => (await channel.checkQueue(config.queue)).messageCount === 0);
     assert.equal(repo.list().length, 6);
-    // Error temporal durante una entrega real: sin ACK, cierre, reconexión y reentrega.
     failNext = true;
     const recovered = { ...extra, pedidoId: 9877 };
     channel.publish(config.exchange, recovered.evento, Buffer.from(JSON.stringify(recovered)), { persistent: true });

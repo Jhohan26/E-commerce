@@ -114,7 +114,6 @@ test('Frontend: actualizar durante el guardado espera y conserva contador al rec
   await until(() => gets === 1 && ui.query('#list').getAttribute('aria-busy') === 'false');
   assert.equal(ui.query('#read').textContent, '1');
   assert.equal(ui.query('#unread').textContent, '1');
-  // Nueva página con el mismo servidor y base, como recargar el navegador.
   const reloaded = new JSDOM(html, { url: ui.dom.window.location.href, runScripts: 'outside-only' });
   try {
     reloaded.window.fetch = originalFetch;

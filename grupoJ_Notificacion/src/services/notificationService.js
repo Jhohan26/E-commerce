@@ -10,7 +10,6 @@ export class NotificationService {
   constructor(repository, emailEnabled = false) { this.repository = repository; this.emailEnabled = emailEnabled; }
   process(payload) {
     const event = validateEvent(payload);
-    // No se exige un campo nuevo al contrato; deduplicación por contenido JSON canónico.
     const key = createHash('sha256').update(JSON.stringify(canonical(event))).digest('hex');
     return this.repository.save(event, generateMessage(event), key, this.emailEnabled);
   }

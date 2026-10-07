@@ -6,8 +6,6 @@ export function validateEvent(event) {
   if (!event || typeof event !== 'object' || Array.isArray(event)) invalid('El mensaje debe ser un objeto JSON');
   if (!eventTypes.includes(event.evento)) invalid('Evento no admitido');
   if (!id(event.pedidoId) || !id(event.clienteId)) invalid('pedidoId y clienteId deben ser enteros positivos');
-  // Los otros cuatro contratos no aparecen definidos en Semana8.
-  // Este adaptador mínimo es un supuesto sugerido que debe acordarse antes de integrar.
   if (typeof event.fecha !== 'string' || !validDate(event.fecha)) invalid('fecha debe ser una fecha ISO válida');
   if (event.evento === 'PedidoCreado') {
     if (!Number.isFinite(event.total) || event.total < 0) invalid('total debe ser un número no negativo');
