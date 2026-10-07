@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Mi E-commerce</title>
+
+    <link rel="stylesheet" href="css/estilos.css">
+</head>
+
+<body>
+
+    <!-- Encabezado -->
+    <header class="encabezado">
+        <div class="contenedor">
+            <h1>Mi E-commerce</h1>
+
+            <nav>
+    <a href="#inicio">Inicio</a>
+    <a href="#productos">Productos</a>
+    <a href="#categorias">Categorías</a>
+</nav>
+        </div>
+    </header>
+
+
+    <!-- Contenido principal -->
+    <main class="contenedor">
+
+        <section id="inicio" class="presentacion">
+            <h2>Catálogo de productos</h2>
+            <p>
+                Explora nuestros productos disponibles.
+            </p>
+        </section>
+
+
+        <!-- Categorías -->
+        <section id="categorias" class="categorias">
+            <h2>Categorías</h2>
+
+            <div id="listaCategorias" class="lista-categorias">
+                <!-- Las categorías se cargarán desde la API -->
+            </div>
+        </section>
+
+
+        <!-- Productos -->
+        <section id="productos" class="productos">
+            <h2>Productos</h2>
+
+            <div id="listaProductos" class="lista-productos">
+                <!-- Los productos se cargarán desde la API -->
+            </div>
+        </section>
+        <section class="administracion">
+    <h2>Administrar productos</h2>
+
+    <form id="formProducto">
+
+        <input type="hidden" id="productoId">
+
+        <div>
+            <label for="nombre">Nombre del producto</label>
+            <input type="text" id="nombre" required>
+        </div>
+
+        <div>
+            <label for="precio">Precio</label>
+            <input type="number" id="precio" step="0.01" min="0" required>
+        </div>
+
+        <div>
+            <label for="categoria_id">Categoría</label>
+            <select id="categoria_id" required>
+                <option value="">Seleccionar categoría</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="imagen_url">URL de imagen</label>
+            <input type="text" id="imagen_url">
+        </div>
+
+        <div>
+            <label for="descripcion">Descripción</label>
+            <textarea id="descripcion" rows="4"></textarea>
+        </div>
+
+        <div>
+            <button type="submit" id="btnGuardar" class="btn">
+                Registrar producto
+            </button>
+
+            <button
+                type="button"
+                id="btnCancelar"
+                class="btn btn-cancelar"
+                style="display: none;"
+            >
+                Cancelar edición
+            </button>
+        </div>
+
+    </form>
+
+    <p id="mensajeFormulario"></p>
+</section>
+
+    </main>
+
+
+    <!-- Pie de página -->
+    <footer class="pie">
+        <p>Mi E-commerce - Microservicio de Productos</p>
+    </footer>
+
+
+    <script src="js/app.js"></script>
+
+</body>
+</html>

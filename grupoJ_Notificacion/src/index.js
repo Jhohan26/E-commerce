@@ -4,17 +4,23 @@ import { NotificationRepository } from './repositories/notificationRepository.js
 import { NotificationService } from './services/notificationService.js';
 import { RabbitConsumer } from './consumers/rabbitConsumer.js';
 import { createApp } from './app.js';
+import { ClientRpc } from './services/clientRpc.js';
+import { createMailer, EmailWorker } from './services/emailWorker.js';
 const config = loadConfig();
 const repository = new NotificationRepository(config.databasePath);
-const consumer = new RabbitConsumer(config, new NotificationService(repository), logger);
+const mailer = config.email.enabled ? createMailer(config) : null;
+const emailWorker = mailer ? new EmailWorker(repository, new ClientRpc(config), mailer, config, logger) : null;
+const consumer = new RabbitConsumer(config, new NotificationService(repository, config.email.enabled), logger);
 const server = createApp(repository, () => consumer.connected, logger).listen(config.port, () => logger.info('api_iniciada', { puerto: config.port }));
 consumer.start();
+emailWorker?.start();
 let stopping = false;
 async function shutdown() {
   if (stopping) return;
   stopping = true;
   const timeout = setTimeout(() => process.exit(1), 10000).unref();
   await consumer.stop();
+  await emailWorker?.stop();
   server.close(() => { repository.close(); clearTimeout(timeout); logger.info('servicio_detenido'); });
 }
 process.on('SIGTERM', shutdown);

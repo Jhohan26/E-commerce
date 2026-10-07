@@ -13,7 +13,9 @@ export class RabbitConsumer {
     this.connecting = true;
     let connection;
     try {
-      connection = await amqp.connect(this.config.rabbitUrl, { timeout: 5000 });
+      const url = new URL(this.config.rabbitUrl);
+      url.searchParams.set('heartbeat', String(this.config.heartbeat || 30));
+      connection = await amqp.connect(url.toString(), { timeout: 5000, rejectUnauthorized: true });
       if (this.stopped) { await connection.close(); return; }
       this.connection = connection;
       connection.on('error', () => this.log.error('conexion_rabbitmq_error'));
@@ -28,7 +30,7 @@ export class RabbitConsumer {
       await channel.consume(this.config.queue, message => {
         if (failed || this.stopped) return;
         if (!message) { void connection.close().catch(() => {}); return; }
-        try { handleDelivery(message, channel, this.service, this.log); }
+        try { handleDelivery(message, channel, this.service, this.log, this.config); }
         catch { failed = true; this.connected = false; void connection.close().catch(() => {}); }
       }, { noAck: false });
       this.connected = true;

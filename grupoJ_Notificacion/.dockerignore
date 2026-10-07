@@ -6,3 +6,4 @@ data
 coverage
 .artifacts
 entregables
+*.zip

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test-consumer": "node scripts/consumer_test.js"
+    "test-consumer": "node scripts/consumer_test.js",
+    "test-pagos": "node scripts/test_pagos_simulator.js"
   },
   "keywords": [
     "microservices",

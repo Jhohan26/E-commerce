@@ -31,6 +31,10 @@ export const api = {
     request(`${BASE}/${id}/estado`, { method: 'PUT', body: JSON.stringify({ estado }) }),
   reenviarEvento: (id) => request(`${BASE}/${id}/reenviar-evento`, { method: 'POST' }),
 
+  // Consulta de Clientes (Grupo F vía RabbitMQ RPC)
+  clientes: () => request('/api/clientes'),
+  cliente: (id) => request(`/api/clientes/${id}`),
+
   // /api/health responde 200 o 207 con JSON; si falla la red, lanza el error.
   async salud() {
     const res = await fetch('/api/health');

@@ -32,6 +32,20 @@ function render() {
     const badge = card.querySelector('.badge'); badge.textContent = row.leida ? 'Leída' : 'Sin leer'; badge.classList.toggle('read', row.leida);
     card.querySelector('.message').textContent = row.mensaje;
     card.querySelector('.metadata').textContent = `Pedido #${row.pedidoId} · Cliente #${row.clienteId} · ${row.tipoEvento}`;
+    const email = document.createElement('p'); email.className = 'email-status';
+    const correo = row.correo || { estado: 'not_scheduled' };
+    const labels = { pending: 'Correo pendiente', accepted: 'Correo aceptado por el proveedor',
+      failed: 'Correo fallido', not_scheduled: 'Correo no programado' };
+    const reasons = { CLIENT_RPC_TIMEOUT: 'Clientes no respondió', CLIENT_RECIPIENT_INVALID: 'Cliente o correo no válido',
+      SMTP_RECIPIENT_REJECTED: 'Destinatario rechazado', EMAIL_DELIVERY_FAILED: 'Error de conexión o envío' };
+    email.dataset.state = correo.estado;
+    email.textContent = labels[correo.estado] || 'Estado de correo desconocido';
+    if (correo.intentosFallidos) email.textContent += ` · Intentos fallidos: ${correo.intentosFallidos}`;
+    if (correo.motivo) email.textContent += ` · ${reasons[correo.motivo] || 'Error de envío'}`;
+    if (correo.proximoIntento) email.textContent += ` · Próximo intento: ${dateFormat.format(new Date(correo.proximoIntento))}`;
+    if (correo.aceptadoEn) email.textContent += ` · ${dateFormat.format(new Date(correo.aceptadoEn))}`;
+    if (correo.estado === 'accepted') email.title = 'El proveedor aceptó el mensaje; esto no confirma su llegada a la bandeja del destinatario.';
+    card.querySelector('.notification-body').append(email);
     const time = card.querySelector('time'); time.dateTime = row.fecha; time.textContent = dateFormat.format(new Date(row.fecha));
     const button = card.querySelector('.mark-read'); button.hidden = row.leida;
     button.addEventListener('click', async () => {

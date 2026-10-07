@@ -1,0 +1,269 @@
+/* =========================
+   CONFIGURACIÓN GENERAL
+   ========================= */
+
+* {
+    html {
+    scroll-behavior: smooth;
+}
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: #f5f6f8;
+    color: #222;
+}
+
+.contenedor {
+    width: 90%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+
+/* =========================
+   ENCABEZADO
+   ========================= */
+
+.encabezado {
+    background-color: #1f2937;
+    color: white;
+    padding: 20px 0;
+}
+
+.encabezado .contenedor {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.encabezado h1 {
+    font-size: 28px;
+}
+
+.encabezado nav {
+    display: flex;
+    gap: 20px;
+}
+
+.encabezado nav a {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.encabezado nav a:hover {
+    text-decoration: underline;
+}
+
+
+/* =========================
+   PRESENTACIÓN
+   ========================= */
+
+.presentacion {
+    text-align: center;
+    padding: 50px 0 30px;
+}
+
+.presentacion h2 {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.presentacion p {
+    color: #666;
+    font-size: 18px;
+}
+
+
+/* =========================
+   CATEGORÍAS
+   ========================= */
+
+.categorias {
+    margin-bottom: 40px;
+}
+
+.categorias h2,
+.productos h2 {
+    margin-bottom: 20px;
+}
+
+.lista-categorias {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.categoria {
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.categoria:hover {
+    background-color: #e5e7eb;
+    transform: translateY(-2px);
+}
+
+.categoria-activa {
+    background-color: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
+
+.categoria-activa:hover {
+    background-color: #1d4ed8;
+}
+
+
+/* =========================
+   PRODUCTOS
+   ========================= */
+
+.lista-productos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 25px;
+    padding-bottom: 50px;
+}
+
+.producto {
+    background-color: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s;
+}
+
+.producto:hover {
+    transform: translateY(-5px);
+}
+
+.producto img {
+    width: 100%;
+    height: 200px;
+    object-fit: contain;
+    background-color: #f5f5f5;
+    padding: 10px;
+    display: block;
+}
+
+.producto-contenido {
+    padding: 20px;
+}
+
+.producto h3 {
+    margin-bottom: 10px;
+    font-size: 20px;
+}
+
+.producto .categoria-producto {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.producto .descripcion {
+    color: #555;
+    margin-bottom: 15px;
+}
+
+.producto .precio {
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+
+/* =========================
+   BOTÓN
+   ========================= */
+
+.btn {
+    display: inline-block;
+    width: 100%;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    background-color: #2563eb;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background-color: #1d4ed8;
+}
+
+
+/* =========================
+   PIE DE PÁGINA
+   ========================= */
+
+.pie {
+    background-color: #1f2937;
+    color: white;
+    text-align: center;
+    padding: 20px;
+    margin-top: 30px;
+}
+.administracion {
+    background-color: white;
+    padding: 30px;
+    margin: 30px 0 50px;
+    border-radius: 10px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.administracion h2 {
+    margin-bottom: 25px;
+}
+
+#formProducto {
+    display: grid;
+    gap: 18px;
+}
+
+#formProducto label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+}
+
+#formProducto input,
+#formProducto select,
+#formProducto textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 15px;
+}
+
+#formProducto textarea {
+    resize: vertical;
+}
+
+.btn-cancelar {
+    background-color: #6b7280;
+    margin-top: 8px;
+}
+
+.btn-cancelar:hover {
+    background-color: #4b5563;
+}
+
+#mensajeFormulario {
+    margin-top: 15px;
+    font-weight: bold;
+}

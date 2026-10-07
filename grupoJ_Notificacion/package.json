@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "amqplib": "^0.10.9",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "nodemailer": "^10.0.16"
   },
   "devDependencies": {
     "jsdom": "^29.1.1"

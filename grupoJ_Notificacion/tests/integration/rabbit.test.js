@@ -19,7 +19,7 @@ async function until(predicate) {
 }
 test('RabbitMQ real → consumidor → SQLite → HTTP, DLQ y recuperación', { timeout: 60000 }, async () => {
   const suffix = randomUUID();
-  const config = { ...loadConfig(), exchange: `test.j.${suffix}`, queue: `test.j.${suffix}`, bindings: eventTypes, reconnectMs: 200 };
+  const config = { ...loadConfig(), sources: undefined, exchange: `test.j.${suffix}`, queue: `test.j.${suffix}`, bindings: eventTypes, reconnectMs: 200 };
   const repo = new NotificationRepository(':memory:');
   const service = new NotificationService(repo);
   const processEvent = service.process.bind(service);

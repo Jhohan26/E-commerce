@@ -25,6 +25,12 @@ export class NotificationRepository {
       );
       CREATE INDEX IF NOT EXISTS idx_cliente ON Notificacion(Cliente_id, id);
       CREATE INDEX IF NOT EXISTS idx_notificacion_pedido ON Notificacion(Pedido_id, id);`);
+      this.db.exec(`CREATE TABLE IF NOT EXISTS EmailJob (
+        notificationId INTEGER PRIMARY KEY REFERENCES Notificacion(id),
+        state TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+        nextAttempt INTEGER NOT NULL DEFAULT 0, messageId TEXT NOT NULL,
+        lastError TEXT, acceptedAt TEXT);
+        CREATE INDEX IF NOT EXISTS idx_email_pending ON EmailJob(state, nextAttempt);`);
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
@@ -32,27 +38,50 @@ export class NotificationRepository {
       throw error;
     }
   }
-  save(event, content, key) {
+  save(event, content, key, enqueueEmail = false) {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
     // INSERT atómico: la restricción UNIQUE evita duplicados tras una redelivery.
     const result = this.db.prepare(`INSERT INTO Notificacion
       (Cliente_id,Pedido_id,tipoEvento,titulo,mensaje,fecha,claveEvento,fechaEvento)
       VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(claveEvento) DO NOTHING`).run(
       event.clienteId, event.pedidoId, event.evento, content.titulo, content.mensaje,
       new Date().toISOString(), key, event.fecha);
-    return { notification: map(this.db.prepare('SELECT * FROM Notificacion WHERE claveEvento=?').get(key)), duplicate: result.changes === 0 };
+    const notification = map(this.db.prepare('SELECT * FROM Notificacion WHERE claveEvento=?').get(key));
+    if (enqueueEmail && result.changes) this.db.prepare(
+      'INSERT INTO EmailJob(notificationId,messageId) VALUES (?,?)').run(notification.id, key);
+    this.db.exec('COMMIT');
+    return { notification, duplicate: result.changes === 0 };
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
+  nextEmail(now = Date.now()) {
+    return this.db.prepare("SELECT * FROM EmailJob WHERE state='pending' AND nextAttempt<=? ORDER BY notificationId LIMIT 1").get(now);
+  }
+  emailAccepted(id) { this.db.prepare("UPDATE EmailJob SET state='accepted', acceptedAt=?, lastError=NULL WHERE notificationId=?").run(new Date().toISOString(), id); }
+  emailFailed(id, attempts, maxAttempts, reason) {
+    this.db.prepare('UPDATE EmailJob SET state=?, attempts=?, nextAttempt=?, lastError=? WHERE notificationId=?').run(
+      attempts >= maxAttempts ? 'failed' : 'pending', attempts,
+      Date.now() + Math.min(3600000, 30000 * 2 ** Math.min(attempts - 1, 7)), reason, id);
   }
   list({ clienteId, limit = 100, offset = 0 } = {}) {
     const sql = clienteId === undefined
-      ? this.db.prepare('SELECT * FROM Notificacion ORDER BY id DESC LIMIT ? OFFSET ?').all(limit, offset)
-      : this.db.prepare('SELECT * FROM Notificacion WHERE Cliente_id=? ORDER BY id DESC LIMIT ? OFFSET ?').all(clienteId, limit, offset);
+      ? this.db.prepare(`${selectWithEmail} ORDER BY n.id DESC LIMIT ? OFFSET ?`).all(limit, offset)
+      : this.db.prepare(`${selectWithEmail} WHERE n.Cliente_id=? ORDER BY n.id DESC LIMIT ? OFFSET ?`).all(clienteId, limit, offset);
     return sql.map(map);
   }
-  get(id) { return map(this.db.prepare('SELECT * FROM Notificacion WHERE id=?').get(id)); }
+  get(id) { return map(this.db.prepare(`${selectWithEmail} WHERE n.id=?`).get(id)); }
   markRead(id) { this.db.prepare('UPDATE Notificacion SET leida=1 WHERE id=?').run(id); return this.get(id); }
   close() { this.db.close(); }
 }
+const selectWithEmail = `SELECT n.*, e.state AS emailState, e.attempts AS emailAttempts,
+  e.nextAttempt AS emailNextAttempt, e.lastError AS emailLastError, e.acceptedAt AS emailAcceptedAt
+  FROM Notificacion n LEFT JOIN EmailJob e ON e.notificationId=n.id`;
 function map(row) {
   if (!row) return null;
-  const { claveEvento, fechaEvento, Cliente_id, Pedido_id, ...publicFields } = row;
-  return { ...publicFields, clienteId: Cliente_id, pedidoId: Pedido_id, leida: Boolean(row.leida) };
+  const { claveEvento, fechaEvento, Cliente_id, Pedido_id, emailState, emailAttempts,
+    emailNextAttempt, emailLastError, emailAcceptedAt, ...publicFields } = row;
+  return { ...publicFields, clienteId: Cliente_id, pedidoId: Pedido_id, leida: Boolean(row.leida),
+    correo: { estado: emailState || 'not_scheduled', intentosFallidos: emailAttempts || 0,
+      proximoIntento: emailState === 'pending' && emailNextAttempt ? new Date(emailNextAttempt).toISOString() : null,
+      motivo: emailLastError || null, aceptadoEn: emailAcceptedAt || null } };
 }
