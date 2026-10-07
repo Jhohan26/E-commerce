@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard de Reportes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+	:root {
+		--bg:#f4f6fb; --card:#ffffff; --card2:#f8f9fd; --txt:#141b34; --mut:#6b7691; --line:#e6eaf3;
+		--brand:#5b5bf0; --brand2:#8b5cf6; --brand-soft:#eeeeff;
+		--ok:#12a150; --ok-soft:#e3f7ec; --bad:#e03e3e; --bad-soft:#fdeaea; --warn:#d98a06; --warn-soft:#fff3d9;
+		--info:#0ea5e9; --info-soft:#e2f4fd;
+		--shadow:0 1px 2px rgba(20,27,52,.05), 0 8px 24px rgba(20,27,52,.06);
+		--glass:rgba(244,246,251,.82);
+	}
+	:root[data-theme="dark"] {
+		--bg:#0a0f1e; --card:#121a2f; --card2:#0f1629; --txt:#e8edf9; --mut:#8f9bb8; --line:#222c47;
+		--brand:#8587ff; --brand2:#a78bfa; --brand-soft:#1c2250;
+		--ok:#3ddc84; --ok-soft:#10301f; --bad:#ff7b7b; --bad-soft:#3a1818; --warn:#fbbf24; --warn-soft:#37290b;
+		--info:#38bdf8; --info-soft:#0e2c3d;
+		--shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+		--glass:rgba(10,15,30,.8);
+	}
+	* { box-sizing:border-box; }
+	html { scroll-behavior:smooth; }
+	body { margin:0; background:var(--bg); color:var(--txt); font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif; line-height:1.45; -webkit-font-smoothing:antialiased; }
+	.i { width:1.15em; height:1.15em; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+	button { font:inherit; cursor:pointer; color:var(--txt); }
+	input { font:inherit; color:var(--txt); }
+
+	/* ---- barra superior ---- */
+	.top { position:sticky; top:0; z-index:20; background:var(--glass); backdrop-filter:blur(14px); border-bottom:1px solid var(--line); }
+	.top-in { max-width:1240px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; gap:14px; }
+	.logo { width:38px; height:38px; border-radius:11px; display:grid; place-items:center; color:#fff; background:linear-gradient(135deg,var(--brand),var(--brand2)); box-shadow:0 6px 16px rgba(91,91,240,.35); }
+	.marca b { display:block; font-size:1.02rem; letter-spacing:-.01em; }
+	.marca span { font-size:.78rem; color:var(--mut); }
+	.sep { flex:1; }
+	.pill { display:inline-flex; align-items:center; gap:8px; font-size:.82rem; font-weight:600; padding:7px 13px; border-radius:999px; background:var(--card); border:1px solid var(--line); color:var(--mut); }
+	.dot { width:9px; height:9px; border-radius:50%; background:var(--mut); }
+	.pill.ok { color:var(--ok); } .pill.ok .dot { background:var(--ok); animation:pulso 2s infinite; }
+	.pill.err { color:var(--bad); } .pill.err .dot { background:var(--bad); }
+	@keyframes pulso { 0%{box-shadow:0 0 0 0 rgba(18,161,80,.5)} 70%{box-shadow:0 0 0 8px rgba(18,161,80,0)} 100%{box-shadow:0 0 0 0 rgba(18,161,80,0)} }
+	.btn { display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:11px; border:1px solid var(--line); background:var(--card); font-weight:600; font-size:.9rem; transition:.15s; }
+	.btn:hover { border-color:var(--brand); transform:translateY(-1px); }
+	.btn.primary { background:linear-gradient(135deg,var(--brand),var(--brand2)); border:0; color:#fff; box-shadow:0 6px 16px rgba(91,91,240,.3); }
+	.btn.icon { padding:9px; }
+	.btn:disabled { opacity:.6; cursor:wait; }
+	.girar { animation:giro 1s linear infinite; } @keyframes giro { to { transform:rotate(360deg); } }
+
+	.wrap { max-width:1240px; margin:0 auto; padding:22px 20px 48px; }
+
+	/* ---- hero ---- */
+	.hero { position:relative; overflow:hidden; border-radius:22px; padding:28px 30px; color:#fff; margin-bottom:18px;
+		background:radial-gradient(1200px 400px at 90% -20%, rgba(255,255,255,.22), transparent 60%), linear-gradient(135deg,#4f46e5 0%,#7c3aed 55%,#c026d3 120%);
+		box-shadow:0 18px 40px rgba(91,70,229,.28); display:flex; flex-wrap:wrap; gap:26px; align-items:center; justify-content:space-between; }
+	.hero small { opacity:.85; font-weight:600; letter-spacing:.06em; text-transform:uppercase; font-size:.75rem; }
+	.hero .gran { font-size:clamp(2.1rem,5vw,3.2rem); font-weight:800; letter-spacing:-.03em; line-height:1.1; margin:4px 0 6px; }
+	.hero p { margin:0; opacity:.9; font-size:.95rem; }
+	.aro { position:relative; width:112px; height:112px; flex:none; }
+	.aro svg { transform:rotate(-90deg); }
+	.aro .centro { position:absolute; inset:0; display:grid; place-items:center; text-align:center; }
+	.aro .centro b { display:block; font-size:1.5rem; font-weight:800; line-height:1; }
+	.aro .centro span { display:block; font-size:.65rem; font-weight:600; opacity:.85; margin-top:3px; text-transform:uppercase; letter-spacing:.05em; }
+
+	.ayuda { display:none; background:var(--brand-soft); border:1px solid var(--line); border-radius:14px; padding:13px 17px; margin-bottom:18px; font-size:.9rem; }
+
+	/* ---- tarjetas ---- */
+	.card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:var(--shadow); }
+	.card h2 { margin:0; font-size:1.02rem; letter-spacing:-.01em; }
+	.card .sub { margin:2px 0 14px; color:var(--mut); font-size:.84rem; }
+	.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-bottom:18px; }
+	.kpi { display:flex; align-items:center; gap:15px; padding:18px; transition:.2s; }
+	.kpi:hover { transform:translateY(-3px); }
+	.ico { width:48px; height:48px; border-radius:14px; display:grid; place-items:center; font-size:1.3rem; flex:none; }
+	.ico.brand { background:var(--brand-soft); color:var(--brand); } .ico.ok { background:var(--ok-soft); color:var(--ok); }
+	.ico.warn { background:var(--warn-soft); color:var(--warn); } .ico.info { background:var(--info-soft); color:var(--info); }
+	.kpi .v { font-size:1.65rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; }
+	.kpi .l { color:var(--mut); font-size:.83rem; margin-top:2px; }
+
+	.grid { display:grid; grid-template-columns:repeat(12,1fr); gap:14px; margin-bottom:18px; }
+	.c8 { grid-column:span 8; } .c4 { grid-column:span 4; } .c6 { grid-column:span 6; }
+	@media (max-width:980px) { .c8,.c4,.c6 { grid-column:span 12; } }
+	.chart { position:relative; height:270px; }
+	.vacio { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--mut); font-size:.9rem; gap:8px; border:2px dashed var(--line); border-radius:14px; padding:14px; background:var(--card2); }
+	.vacio .i { width:2rem; height:2rem; opacity:.6; }
+	.chart.sin-datos canvas { visibility:hidden; } .chart.sin-datos .vacio { display:flex; }
+
+	/* ---- tabla ---- */
+	.tabla-w { overflow-x:auto; }
+	table { width:100%; border-collapse:collapse; font-size:.9rem; }
+	th { color:var(--mut); font-weight:600; font-size:.74rem; text-transform:uppercase; letter-spacing:.05em; text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+	td { padding:12px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+	tr:last-child td { border-bottom:0; }
+	tbody tr:hover { background:var(--card2); }
+	.num { text-align:right; font-variant-numeric:tabular-nums; }
+	.tag { display:inline-block; font-size:.72rem; font-weight:700; padding:4px 10px; border-radius:999px; letter-spacing:.02em; }
+	.tag.APROBADO, .tag.ACTIVO { background:var(--ok-soft); color:var(--ok); }
+	.tag.RECHAZADO, .tag.INACTIVO { background:var(--bad-soft); color:var(--bad); }
+	.tag.PENDIENTE { background:var(--warn-soft); color:var(--warn); }
+
+	/* ---- clientes ---- */
+	.cab { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:14px; }
+	.cab .sub { margin:2px 0 0; }
+	.herr { display:flex; flex-wrap:wrap; gap:10px; }
+	.campo { display:flex; align-items:center; gap:8px; padding:0 12px; border-radius:11px; border:1px solid var(--line); background:var(--card2); color:var(--mut); }
+	.campo input { border:0; background:transparent; outline:none; padding:10px 0; width:170px; }
+	.campo:focus-within { border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+	.clientes { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; margin-bottom:6px; max-height:230px; overflow-y:auto; padding:2px; }
+	.cli { display:flex; align-items:center; gap:12px; padding:12px; border-radius:14px; border:1px solid var(--line); background:var(--card2); text-align:left; transition:.15s; }
+	.cli:hover { border-color:var(--brand); transform:translateY(-2px); }
+	.cli.sel { border-color:var(--brand); background:var(--brand-soft); box-shadow:0 0 0 3px var(--brand-soft); }
+	.avatar { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; font-weight:800; color:#fff; flex:none; background:linear-gradient(135deg,var(--brand),var(--brand2)); }
+	.cli b { display:block; font-size:.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px; }
+	.cli span { color:var(--mut); font-size:.78rem; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px; }
+	.detalle { margin-top:16px; border-top:1px solid var(--line); padding-top:18px; }
+	.ficha { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+	.ficha .avatar { width:54px; height:54px; font-size:1.3rem; }
+	.ficha h3 { margin:0; font-size:1.15rem; } .ficha p { margin:2px 0 0; color:var(--mut); font-size:.88rem; }
+	.mini { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; margin-bottom:16px; }
+	.mini div { background:var(--card2); border:1px solid var(--line); border-radius:14px; padding:13px 15px; }
+	.mini .v { font-weight:800; font-size:1.2rem; letter-spacing:-.01em; } .mini .l { color:var(--mut); font-size:.78rem; }
+	.msg { color:var(--mut); font-size:.92rem; padding:6px 0; }
+
+	/* ---- carga y avisos ---- */
+	.cargando .v, .cargando .gran { color:transparent !important; background:linear-gradient(90deg,var(--line),var(--card2),var(--line)); background-size:200% 100%; animation:brillo 1.2s infinite; border-radius:8px; }
+	.hero.cargando .gran { background:linear-gradient(90deg,rgba(255,255,255,.15),rgba(255,255,255,.35),rgba(255,255,255,.15)); background-size:200% 100%; }
+	@keyframes brillo { to { background-position:-200% 0; } }
+	.toast { position:fixed; right:18px; bottom:18px; z-index:50; max-width:min(380px,calc(100vw - 36px)); padding:13px 17px; border-radius:14px; background:var(--txt); color:var(--bg); font-size:.9rem; font-weight:500; box-shadow:0 12px 30px rgba(0,0,0,.25); opacity:0; transform:translateY(12px); pointer-events:none; transition:.25s; }
+	.toast.ver { opacity:1; transform:none; }
+	footer { color:var(--mut); font-size:.8rem; text-align:center; margin-top:26px; }
+	@media (max-width:640px) { .top-in { flex-wrap:wrap; } .marca span { display:none; } .hero { padding:22px; } .campo input { width:120px; } }
+	@media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+	<symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
+	<symbol id="i-usercheck" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></symbol>
+	<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+	<symbol id="i-refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></symbol>
+	<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></symbol>
+	<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+	<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+	<symbol id="i-chart" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+	<symbol id="i-card" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
+	<symbol id="i-box" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+	<symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></symbol>
+	<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+</svg>
+
+<header class="top"><div class="top-in">
+	<div class="logo"><svg class="i" style="width:20px;height:20px"><use href="#i-chart"/></svg></div>
+	<div class="marca"><b>Reportes</b><span>E-commerce · Grupo C</span></div>
+	<span class="sep"></span>
+	<span class="pill" id="estado"><span class="dot"></span><span id="estado-txt">Conectando…</span></span>
+	<button class="btn icon" id="tema" title="Cambiar tema" aria-label="Cambiar tema"><svg class="i"><use id="tema-ico" href="#i-moon"/></svg></button>
+	<button class="btn primary" id="refrescar"><svg class="i" id="ref-ico"><use href="#i-refresh"/></svg><span>Actualizar</span></button>
+</div></header>
+
+<main class="wrap">
+	<section class="hero cargando" id="hero">
+		<div>
+			<small>Ventas aprobadas</small>
+			<div class="gran" id="k-ventas">$ 0</div>
+			<p id="hero-sub">Cargando datos…</p>
+		</div>
+		<div class="aro" title="Porcentaje de pagos aprobados">
+			<svg viewBox="0 0 120 120" width="112" height="112">
+				<circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="12"/>
+				<circle id="aro-arco" cx="60" cy="60" r="50" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="314.16" style="transition:stroke-dashoffset .8s ease"/>
+			</svg>
+			<div class="centro"><div><b id="k-tasa">–</b><span>aprobados</span></div></div>
+		</div>
+	</section>
+
+	<div class="ayuda" id="ayuda"><b>Aún no hay pedidos.</b> Esta pantalla se llena sola cuando Pedidos y Pagos envían sus eventos. Mientras tanto, todo aparece en cero.</div>
+
+	<section class="kpis">
+		<div class="card kpi cargando"><div class="ico brand"><svg class="i"><use href="#i-users"/></svg></div><div><div class="v" id="k-total-clientes">0</div><div class="l">Clientes registrados</div></div></div>
+		<div class="card kpi cargando"><div class="ico info"><svg class="i"><use href="#i-bag"/></svg></div><div><div class="v" id="k-pedidos">0</div><div class="l">Pedidos recibidos</div></div></div>
+		<div class="card kpi cargando"><div class="ico ok"><svg class="i"><use href="#i-usercheck"/></svg></div><div><div class="v" id="k-clientes">0</div><div class="l">Clientes que han comprado</div></div></div>
+		<div class="card kpi cargando"><div class="ico warn"><svg class="i"><use href="#i-clock"/></svg></div><div><div class="v" id="k-pend">0</div><div class="l">Pagos pendientes</div></div></div>
+	</section>
+
+	<section class="grid">
+		<div class="card c8">
+			<h2>Ventas por día</h2><p class="sub">Dinero de los pedidos con pago aprobado</p>
+			<div class="chart" id="w-ventas"><canvas id="c-ventas"></canvas><div class="vacio"><svg class="i"><use href="#i-chart"/></svg>Sin ventas todavía</div></div>
+		</div>
+		<div class="card c4">
+			<h2>Estado de los pagos</h2><p class="sub">Aprobados, rechazados y pendientes</p>
+			<div class="chart" id="w-pagos"><canvas id="c-pagos"></canvas><div class="vacio"><svg class="i"><use href="#i-card"/></svg>Sin pagos todavía</div></div>
+		</div>
+		<div class="card c6">
+			<h2>Productos más vendidos</h2><p class="sub">Unidades vendidas por producto</p>
+			<div class="chart" id="w-productos"><canvas id="c-productos"></canvas><div class="vacio"><svg class="i"><use href="#i-box"/></svg>Sin productos vendidos</div></div>
+		</div>
+		<div class="card c6">
+			<h2>Mejores clientes</h2><p class="sub">Quiénes más han comprado, en pesos</p>
+			<div class="chart" id="w-clientes"><canvas id="c-clientes"></canvas><div class="vacio"><svg class="i"><use href="#i-award"/></svg>Sin compras de clientes</div></div>
+		</div>
+	</section>
+
+	<section class="card" style="margin-bottom:18px">
+		<h2>Últimos pedidos</h2><p class="sub">Los pedidos más recientes que ha recibido Reportes</p>
+		<div class="tabla-w"><table>
+			<thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha</th><th class="num">Unidades</th><th class="num">Total</th><th>Pago</th></tr></thead>
+			<tbody id="tb-pedidos"><tr><td colspan="6" class="msg">Aún no hay pedidos.</td></tr></tbody>
+		</table></div>
+	</section>
+
+	<section class="card">
+		<div class="cab">
+			<div><h2>Reporte de un cliente</h2><p class="sub">Elige un cliente o tráelo desde el servicio de Clientes con su id.</p></div>
+			<div class="herr">
+				<label class="campo"><svg class="i"><use href="#i-search"/></svg><input id="buscar" type="search" placeholder="Buscar cliente…"></label>
+				<label class="campo"><input id="id-sync" type="number" min="1" placeholder="Id del cliente" style="width:120px"></label>
+				<button class="btn" id="btn-sync"><svg class="i"><use href="#i-download"/></svg>Traer cliente</button>
+			</div>
+		</div>
+		<div class="clientes" id="lista-clientes"><div class="msg">Aún no hay clientes.</div></div>
+		<div class="detalle" id="detalle"><div class="msg">Selecciona un cliente para ver su reporte.</div></div>
+	</section>
+
+	<footer id="pie">Reportes · Grupo C</footer>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const peso = n => Number(n || 0).toLocaleString("es-CO", {style:"currency", currency:"COP", maximumFractionDigits:0});
+const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fecha = f => String(f).replace("T", " ").slice(0, 16);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL = { APROBADO:"#12a150", RECHAZADO:"#e03e3e", PENDIENTE:"#f0a30a" };
+const PALETA = ["#5b5bf0","#0ea5e9","#12a150","#f0a30a","#ec4899","#8b5cf6","#14b8a6","#f97316","#64748b","#84cc16"];
+const charts = {};
+const params = new URLSearchParams(location.search);
+const REDUCIR = matchMedia("(prefers-reduced-motion: reduce)").matches || params.has("sinanim");
+let clientes = [], seleccionado = null, ultimo = null;
+
+/* ---------- tema ---------- */
+function aplicarTema(t) {
+	document.documentElement.dataset.theme = t;
+	$("tema-ico").setAttribute("href", t === "dark" ? "#i-sun" : "#i-moon");
+	try { localStorage.setItem("tema", t); } catch (e) {}
+	Chart.defaults.color = css("--mut"); Chart.defaults.borderColor = css("--line");
+	if (ultimo) dibujarTodo(ultimo);
+}
+let temaInicial = "light";
+try { temaInicial = localStorage.getItem("tema") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); } catch (e) {}
+const pedido = params.get("tema");      // ?tema=claro | ?tema=oscuro
+if (pedido) temaInicial = pedido.startsWith("o") || pedido === "dark" ? "dark" : "light";
+document.documentElement.dataset.theme = temaInicial;
+Chart.defaults.animation = REDUCIR ? false : { duration:600 };
+if (REDUCIR) $("aro-arco").style.transition = "none";
+Chart.defaults.font.family = 'Inter,"Segoe UI",system-ui,sans-serif';
+Chart.defaults.color = css("--mut"); Chart.defaults.borderColor = css("--line");
+$("tema").addEventListener("click", () => aplicarTema(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+$("tema-ico").setAttribute("href", temaInicial === "dark" ? "#i-sun" : "#i-moon");
+
+/* ---------- utilidades ---------- */
+async function get(url) {
+	const r = await fetch(url);
+	if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || ("error " + r.status));
+	return r.json();
+}
+function estado(ok, texto) { $("estado").className = "pill " + (ok ? "ok" : "err"); $("estado-txt").textContent = texto; }
+let tt;
+function aviso(texto) { const t = $("toast"); t.textContent = texto; t.classList.add("ver"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("ver"), 4200); }
+function contar(id, valor, formato = v => Math.round(v)) {
+	const el = $(id), desde = Number(el.dataset.v || 0), hasta = Number(valor || 0), t0 = performance.now(), mia = (el._anim = (el._anim || 0) + 1);
+	el.dataset.v = hasta;
+	if (desde === hasta || REDUCIR) { el.textContent = formato(hasta); return; }
+	const fin = () => { if (el._anim === mia) el.textContent = formato(hasta); };
+	(function paso(t) {
+		if (el._anim !== mia) return;               // llegó otro valor: esta animación se cancela
+		const k = Math.min(1, (t - t0) / 650), e = 1 - Math.pow(1 - k, 3);
+		el.textContent = formato(desde + (hasta - desde) * e);
+		if (k < 1) requestAnimationFrame(paso);
+	})(t0);
+	setTimeout(fin, 750);                           // respaldo: si el navegador pausa las animaciones, igual queda el valor exacto
+}
+const iniciales = n => (String(n).trim()[0] || "?").toUpperCase();
+
+/* ---------- gráficas ---------- */
+function dibujar(id, config, hayDatos) {
+	if (charts[id]) charts[id].destroy();
+	$("w-" + id.slice(2)).classList.toggle("sin-datos", !hayDatos);
+	if (!hayDatos) return;
+	config.options = Object.assign({ responsive:true, maintainAspectRatio:false }, config.options);
+	charts[id] = new Chart($(id), config);
+}
+const tip = f => ({ backgroundColor:css("--txt"), titleColor:css("--bg"), bodyColor:css("--bg"), padding:11, cornerRadius:10, displayColors:false, callbacks:{ label:f } });
+
+function dibujarTodo(d) {
+	const { res, dias, pagos, prods } = d, nombres = Object.fromEntries(clientes.map(c => [c.cliente_id, c.nombre_completo]));
+	const mut = css("--mut"), card = css("--card");
+
+	dibujar("c-ventas", { type:"line",
+		data:{ labels:dias.map(x => x.dia), datasets:[{ data:dias.map(x => Number(x.ventas)), borderColor:"#5b5bf0", borderWidth:3,
+			fill:true, tension:.35, pointRadius:5, pointHoverRadius:7, pointBackgroundColor:card, pointBorderColor:"#5b5bf0", pointBorderWidth:3,
+			backgroundColor: c => { const a = c.chart.chartArea; if (!a) return "rgba(91,91,240,.15)";
+				const g = c.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom); g.addColorStop(0, "rgba(91,91,240,.35)"); g.addColorStop(1, "rgba(91,91,240,0)"); return g; } }] },
+		options:{ plugins:{ legend:{display:false}, tooltip:tip(c => peso(c.parsed.y)) },
+			scales:{ x:{ grid:{display:false} }, y:{ beginAtZero:true, border:{display:false}, ticks:{ callback:v => peso(v), maxTicksLimit:5 } } } } }, dias.length > 0);
+
+	const total = pagos.reduce((a, p) => a + p.cantidad, 0);
+	dibujar("c-pagos", { type:"doughnut",
+		data:{ labels:pagos.map(p => p.estado_pago[0] + p.estado_pago.slice(1).toLowerCase()),
+			datasets:[{ data:pagos.map(p => p.cantidad), backgroundColor:pagos.map(p => COL[p.estado_pago]), borderWidth:4, borderColor:card, hoverOffset:6 }] },
+		options:{ cutout:"68%", plugins:{ legend:{ position:"bottom", labels:{ usePointStyle:true, pointStyle:"circle", padding:16 } }, tooltip:tip(c => ` ${c.label}: ${c.parsed} pedido(s)`) } },
+		plugins:[{ id:"centro", afterDraw(ch) { const { ctx, chartArea:a } = ch, x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2;
+			ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = css("--txt"); ctx.font = "800 28px Inter,system-ui,sans-serif"; ctx.fillText(total, x, y + 4);
+			ctx.fillStyle = mut; ctx.font = "600 12px Inter,system-ui,sans-serif"; ctx.fillText("pedidos", x, y + 22); ctx.restore(); } }] }, pagos.length > 0);
+
+	dibujar("c-productos", { type:"bar",
+		data:{ labels:prods.map(p => "Producto #" + p.producto_id), datasets:[{ data:prods.map(p => Number(p.unidades)), backgroundColor:PALETA, borderRadius:8, borderSkipped:false, barThickness:22 }] },
+		options:{ indexAxis:"y", plugins:{ legend:{display:false}, tooltip:tip(c => c.parsed.x + " unidad(es)") },
+			scales:{ x:{ beginAtZero:true, border:{display:false}, ticks:{ precision:0 } }, y:{ grid:{display:false}, border:{display:false} } } } }, prods.length > 0);
+
+	const mc = res.mejores_clientes;
+	dibujar("c-clientes", { type:"bar",
+		data:{ labels:mc.map(c => nombres[c.cliente_id] || "Cliente #" + c.cliente_id), datasets:[{ data:mc.map(c => Number(c.total_comprado)), backgroundColor:PALETA.slice(2).concat(PALETA), borderRadius:8, borderSkipped:false, barThickness:22 }] },
+		options:{ indexAxis:"y", plugins:{ legend:{display:false}, tooltip:tip(c => peso(c.parsed.x)) },
+			scales:{ x:{ beginAtZero:true, border:{display:false}, ticks:{ callback:v => peso(v), maxTicksLimit:4 } }, y:{ grid:{display:false}, border:{display:false} } } } }, mc.length > 0);
+}
+
+/* ---------- carga de datos ---------- */
+async function cargar() {
+	try {
+		const [res, dias, pagos, prods, lista, recientes, st] = await Promise.all([
+			get("/reportes/resumen"), get("/reportes/ventas-por-dia"), get("/reportes/pagos"), get("/reportes/top-productos"),
+			get("/clientes"), get("/reportes/pedidos-recientes"), get("/api/estado") ]);
+		clientes = lista; ultimo = { res, dias, pagos, prods };
+		document.querySelectorAll(".cargando").forEach(e => e.classList.remove("cargando"));
+		if (st.rabbit === "conectado") estado(true, "En vivo"); else estado(false, "Sin RabbitMQ: " + st.rabbit);
+
+		const cant = e => (pagos.find(p => p.estado_pago === e) || {}).cantidad || 0;
+		const decididos = cant("APROBADO") + cant("RECHAZADO"), tasa = decididos ? Math.round(100 * cant("APROBADO") / decididos) : 0;
+		contar("k-ventas", res.ventas_aprobadas, peso);
+		contar("k-total-clientes", res.total_clientes); contar("k-pedidos", res.total_pedidos);
+		contar("k-clientes", res.clientes_con_compras); contar("k-pend", cant("PENDIENTE"));
+		$("k-tasa").textContent = decididos ? tasa + " %" : "–";
+		$("aro-arco").style.strokeDashoffset = 314.16 * (1 - tasa / 100);
+		$("hero-sub").textContent = res.total_pedidos
+			? `${res.total_pedidos} pedido(s) de ${res.clientes_con_compras} cliente(s) · ${cant("APROBADO")} pago(s) aprobado(s)`
+			: "Todavía no hay pedidos registrados";
+		$("ayuda").style.display = res.total_pedidos === 0 ? "block" : "none";
+
+		dibujarTodo(ultimo);
+		$("tb-pedidos").innerHTML = recientes.length ? recientes.map(p => `<tr>
+			<td><b>#${esc(p.pedido_id)}</b></td><td>${esc(p.cliente || "Cliente #" + p.cliente_id)}</td><td>${esc(fecha(p.fecha))}</td>
+			<td class="num">${esc(p.unidades)}</td><td class="num"><b>${peso(p.total)}</b></td>
+			<td><span class="tag ${esc(p.estado_pago)}">${esc(p.estado_pago)}</span></td></tr>`).join("")
+			: '<tr><td colspan="6" class="msg">Aún no hay pedidos.</td></tr>';
+		pintarClientes();
+		$("pie").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO") + " · Clientes: " + st.clientes + " · Pedidos: " + st.pedidos;
+	} catch (e) {
+		estado(false, "Sin conexión con Reportes");
+	}
+}
+
+/* ---------- clientes ---------- */
+function pintarClientes() {
+	const q = $("buscar").value.trim().toLowerCase();
+	const vis = clientes.filter(c => !q || (c.nombre_completo + " " + c.correo + " " + c.cliente_id).toLowerCase().includes(q));
+	$("lista-clientes").innerHTML = vis.length ? vis.map(c => `<button class="cli ${c.cliente_id === seleccionado ? "sel" : ""}" data-id="${esc(c.cliente_id)}">
+		<div class="avatar">${esc(iniciales(c.nombre_completo))}</div><div><b>${esc(c.nombre_completo)}</b><span>${esc(c.correo)}</span></div></button>`).join("")
+		: `<div class="msg">${clientes.length ? "Ningún cliente coincide con la búsqueda." : "Aún no hay clientes."}</div>`;
+}
+$("lista-clientes").addEventListener("click", e => { const b = e.target.closest(".cli"); if (b) verCliente(Number(b.dataset.id)); });
+$("buscar").addEventListener("input", pintarClientes);
+
+async function verCliente(id) {
+	const box = $("detalle");
+	seleccionado = id || null; pintarClientes();
+	if (!id) { box.innerHTML = '<div class="msg">Selecciona un cliente para ver su reporte.</div>'; return; }
+	try {
+		const d = await get("/reportes/cliente/" + id), r = d.resumen, c = d.cliente;
+		box.innerHTML = `
+			<div class="ficha"><div class="avatar">${esc(iniciales(c.nombre_completo))}</div>
+				<div><h3>${esc(c.nombre_completo)}</h3><p>${esc(c.correo)} · Cliente #${esc(c.cliente_id)} · <span class="tag ${c.estado === 0 ? "INACTIVO" : "ACTIVO"}">${c.estado === 0 ? "Desactivado" : "Activo"}</span></p></div></div>
+			<div class="mini">
+				<div><div class="v">${esc(r.total_pedidos)}</div><div class="l">Pedidos</div></div>
+				<div><div class="v">${peso(r.total_comprado)}</div><div class="l">Total comprado</div></div>
+				<div><div class="v">${peso(r.total_pagado)}</div><div class="l">Total pagado</div></div>
+				<div><div class="v">${peso(r.ticket_promedio)}</div><div class="l">Promedio por pedido</div></div>
+				<div><div class="v">${esc(r.pagos_aprobados)} / ${esc(r.pagos_rechazados)}</div><div class="l">Pagos aprobados / rechazados</div></div>
+			</div>
+			${d.ultimos_pedidos.length ? `<div class="tabla-w"><table><thead><tr><th>Pedido</th><th>Fecha</th><th class="num">Total</th><th>Pago</th></tr></thead><tbody>
+			${d.ultimos_pedidos.map(p => `<tr><td><b>#${esc(p.pedido_id)}</b></td><td>${esc(fecha(p.fecha))}</td><td class="num">${peso(p.total)}</td>
+				<td><span class="tag ${esc(p.estado_pago)}">${esc(p.estado_pago)}</span></td></tr>`).join("")}</tbody></table></div>`
+			: '<div class="msg">Este cliente aún no tiene pedidos.</div>'}`;
+	} catch (e) { box.innerHTML = `<div class="msg">No se pudo cargar el reporte: ${esc(e.message)}</div>`; }
+}
+
+/* ---------- acciones ---------- */
+$("refrescar").addEventListener("click", async () => {
+	const b = $("refrescar"); b.disabled = true; $("ref-ico").classList.add("girar");
+	try {
+		const r = await (await fetch("/sincronizar", { method:"POST" })).json();
+		aviso(Object.entries(r).map(([k, v]) => typeof v === "number" ? `${v} ${k}` : `${k}: ${v}`).join(" · "));
+	} catch (e) { aviso("No se pudo actualizar"); }
+	await cargar(); if (seleccionado) verCliente(seleccionado);
+	b.disabled = false; $("ref-ico").classList.remove("girar");
+});
+
+// Traer cliente: POST /cliente con {"id": N} -> datos del cliente.
+$("btn-sync").addEventListener("click", async () => {
+	const id = parseInt($("id-sync").value);
+	if (!id) { aviso("Escribe el id del cliente que quieres traer."); return; }
+	try {
+		const r = await fetch("/cliente", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id }) });
+		const d = await r.json().catch(() => ({}));
+		if (!r.ok) throw new Error(d.detail || ("error " + r.status));
+		await cargar(); verCliente(id); aviso("Cliente #" + id + " traído desde Clientes");
+	} catch (e) { aviso("No se pudo traer el cliente: " + e.message); }
+});
+$("id-sync").addEventListener("keydown", e => { if (e.key === "Enter") $("btn-sync").click(); });
+
+/* ---------- en vivo: el servidor avisa por /stream cuando cambia un dato ---------- */
+let pendiente;
+function programar() { clearTimeout(pendiente); pendiente = setTimeout(() => { cargar(); if (seleccionado) verCliente(seleccionado); }, 250); }
+function conectarEnVivo() {
+	const es = new EventSource("/stream");
+	es.onmessage = programar;          // llega al conectar, al reconectar y en cada cambio
+	es.onerror = () => estado(false, "Reconectando…");
+}
+cargar();
+conectarEnVivo();
+</script>
+</body>
+</html>
