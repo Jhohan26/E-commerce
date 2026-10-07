@@ -23,6 +23,8 @@ load_dotenv()
 AMQP_URL = os.getenv("AMQP_URL", "")
 CLIENTES_URL = os.getenv("CLIENTES_URL", "http://localhost:8000")
 PEDIDOS_URL = os.getenv("PEDIDOS_URL", "http://localhost:3000")
+PRODUCTOS_URL = os.getenv("PRODUCTOS_URL", "").rstrip("/")   # sin valor por defecto: no se adivina el puerto
+INVENTARIO_URL = os.getenv("INVENTARIO_URL", "").rstrip("/")  # idem (el README de Inventario sugiere el puerto 8005)
 CLIENTES_RPC = os.getenv("CLIENTES_MODO", "rpc" if AMQP_URL else "http") == "rpc"
 # Clientes no publica eventos: este respaldo vuelve a pedirle sus datos cada N segundos (0 = apagado).
 REFRESCO_SEG = int(os.getenv("REFRESCO_SEG", "300"))
@@ -30,6 +32,8 @@ REFRESCO_SEG = int(os.getenv("REFRESCO_SEG", "300"))
 EXCHANGE_PEDIDOS = os.getenv("AMQP_EXCHANGE_PEDIDOS", "pedidos_exchange")
 COLA_PEDIDOS = os.getenv("AMQP_QUEUE_PEDIDOS", "reportes_pedidos_queue")
 COLA_PAGOS = os.getenv("AMQP_QUEUE_PAGOS", "reportes_pagos_queue")
+COLA_INVENTARIO = os.getenv("AMQP_QUEUE_INVENTARIO", "reportes_inventario_queue")
+EXCHANGE_INVENTARIO = os.getenv("AMQP_EXCHANGE_INVENTARIO", "inventario_exchange")   # fanout, lo declara Inventario
 # Pagos usa ecommerce.eventos (topic); Facturación espera pagos_exchange (fanout). Se enlaza al que exista.
 EXCHANGES_PAGOS = [x.strip() for x in os.getenv("AMQP_EXCHANGES_PAGOS", "ecommerce.eventos,pagos_exchange").split(",") if x.strip()]
 CLAVES_PAGOS = ("pago.aprobado", "pago.rechazado")  # las ignora un exchange fanout
@@ -39,6 +43,8 @@ logging.getLogger("pika").setLevel(logging.WARNING)
 log = logging.getLogger("reportes")
 
 estado = {"clientes": "pendiente", "pedidos": "pendiente",
+		  "productos": "pendiente" if PRODUCTOS_URL else "sin configurar (PRODUCTOS_URL)",
+		  "inventario": "pendiente" if INVENTARIO_URL else "sin configurar (INVENTARIO_URL)",
 		  "rabbit": "conectando…" if AMQP_URL else "sin AMQP_URL"}
 _enlazados: set = set()
 
@@ -113,10 +119,48 @@ def cargar_pedidos() -> int:
 	return len(lista)
 
 
+# ---------- Productos ----------
+_ultimo_intento_productos = 0.0
+
+
+def cargar_productos() -> int:
+	"""GET {PRODUCTOS_URL}/api/productos -> catálogo (id, nombre, categoria, precio)."""
+	if not PRODUCTOS_URL:
+		raise FuenteError(503, "sin configurar (PRODUCTOS_URL)")
+	try:
+		r = requests.get(f"{PRODUCTOS_URL}/api/productos", timeout=10)
+		r.raise_for_status()
+		lista = r.json()
+		almacen.reemplazar_productos(lista)
+	except (requests.RequestException, KeyError, ValueError, TypeError) as e:
+		_estado("productos", "error: " + type(e).__name__)
+		raise FuenteError(502, "No se pudo leer la API de Productos")
+	_estado("productos", "ok")
+	return len(lista)
+
+
+# ---------- Inventario ----------
+def cargar_inventario() -> int:
+	"""GET {INVENTARIO_URL}/api/inventario -> existencias por producto."""
+	if not INVENTARIO_URL:
+		raise FuenteError(503, "sin configurar (INVENTARIO_URL)")
+	try:
+		r = requests.get(f"{INVENTARIO_URL}/api/inventario", timeout=10)
+		r.raise_for_status()
+		lista = r.json()
+		almacen.reemplazar_inventario(lista)
+	except (requests.RequestException, KeyError, ValueError, TypeError) as e:
+		_estado("inventario", "error: " + type(e).__name__)
+		raise FuenteError(502, "No se pudo leer la API de Inventario")
+	_estado("inventario", "ok")
+	return len(lista)
+
+
 def refrescar_todo() -> dict:
 	"""Vuelve a pedir todo a las APIs. Devuelve cuántos datos trajo de cada fuente."""
 	res = {}
-	for nombre, f in (("clientes", cargar_clientes), ("pedidos", cargar_pedidos)):
+	for nombre, f in (("clientes", cargar_clientes), ("pedidos", cargar_pedidos), ("productos", cargar_productos),
+					  ("inventario", cargar_inventario)):
 		try:
 			res[nombre] = f()
 		except FuenteError as e:
@@ -136,32 +180,53 @@ def aplicar_evento(d: dict) -> None:
 					almacen.guardar_cliente(traer_cliente(int(d["clienteId"])))
 				except FuenteError:
 					pass
+			global _ultimo_intento_productos                      # producto desconocido: se relee el catálogo (máx. 1 vez/min)
+			if PRODUCTOS_URL and time.time() - _ultimo_intento_productos > 60 and 					any(x["productoId"] not in almacen.productos for x in d.get("productos", [])):
+				_ultimo_intento_productos = time.time()
+				try:
+					cargar_productos()
+				except FuenteError:
+					pass
 		elif ev in ("PagoAprobado", "PagoRechazado"):
 			almacen.registrar_pago(pid, ev == "PagoAprobado")
+		elif ev in ("InventarioActualizado", "InventarioInsuficiente"):
+			# el evento solo avisa que el stock cambió: se vuelve a leer la API de Inventario
+			if INVENTARIO_URL:
+				try:
+					cargar_inventario()
+				except FuenteError:
+					pass
 		else:
 			raise ValueError("Evento no soportado por Reportes: " + str(ev))
 	except (KeyError, TypeError) as e:
 		raise ValueError("Campo faltante o inválido: " + str(e))
 
 
-def _enlazar_pagos(conn):
-	"""Enlaza la cola de pagos a cada exchange de Pagos que ya exista; reintenta cada 30 s."""
-	for ex in EXCHANGES_PAGOS:
-		if ex in _enlazados:
-			continue
-		ch = conn.channel()
-		try:
-			ch.exchange_declare(exchange=ex, passive=True)   # solo comprueba, no crea
-			for clave in CLAVES_PAGOS:
-				ch.queue_bind(queue=COLA_PAGOS, exchange=ex, routing_key=clave)
-			_enlazados.add(ex)
-			log.info("Cola '%s' enlazada a '%s'", COLA_PAGOS, ex)
-		except pika.exceptions.ChannelClosedByBroker:
-			pass  # aún no existe
-		else:
-			ch.close()
-	if len(_enlazados) < len(EXCHANGES_PAGOS):
-		conn.call_later(30, lambda: _enlazar_pagos(conn))
+# cola propia -> (exchanges candidatos, claves de enlace). Solo se enlazan los que YA existen: no se crean.
+_ENLACES = {COLA_PAGOS: (EXCHANGES_PAGOS, CLAVES_PAGOS),
+			COLA_INVENTARIO: ([EXCHANGE_INVENTARIO], ("",))}
+
+
+def _enlazar_opcionales(conn):
+	"""Enlaza las colas de pagos e inventario a los exchanges de esos grupos cuando existan; reintenta cada 30 s."""
+	pendientes = 0
+	for cola, (exchanges, claves) in _ENLACES.items():
+		for ex in exchanges:
+			if (cola, ex) in _enlazados:
+				continue
+			ch = conn.channel()
+			try:
+				ch.exchange_declare(exchange=ex, passive=True)   # solo comprueba, no crea
+				for clave in claves:
+					ch.queue_bind(queue=cola, exchange=ex, routing_key=clave)
+				_enlazados.add((cola, ex))
+				log.info("Cola '%s' enlazada a '%s'", cola, ex)
+			except pika.exceptions.ChannelClosedByBroker:
+				pendientes += 1   # aún no existe
+			else:
+				ch.close()
+	if pendientes:
+		conn.call_later(30, lambda: _enlazar_opcionales(conn))
 
 
 def _al_recibir(ch, method, props, body):
@@ -186,12 +251,14 @@ def _escuchar():
 	ch.queue_declare(queue=COLA_PEDIDOS, durable=True)
 	ch.queue_bind(queue=COLA_PEDIDOS, exchange=EXCHANGE_PEDIDOS)
 	ch.queue_declare(queue=COLA_PAGOS, durable=True)
-	_enlazar_pagos(conn)
+	ch.queue_declare(queue=COLA_INVENTARIO, durable=True)
+	_enlazar_opcionales(conn)
 	ch.basic_qos(prefetch_count=1)
 	ch.basic_consume(queue=COLA_PEDIDOS, on_message_callback=_al_recibir)
 	ch.basic_consume(queue=COLA_PAGOS, on_message_callback=_al_recibir)
+	ch.basic_consume(queue=COLA_INVENTARIO, on_message_callback=_al_recibir)
 	_estado("rabbit", "conectado")
-	log.info("Escuchando '%s' y '%s'", COLA_PEDIDOS, COLA_PAGOS)
+	log.info("Escuchando '%s', '%s' y '%s'", COLA_PEDIDOS, COLA_PAGOS, COLA_INVENTARIO)
 	ch.start_consuming()
 
 

@@ -19,6 +19,7 @@ Abrir **http://127.0.0.1:8001/**. Variables en `.env` (ver `.env.example`): `AMQ
 | Fuente | Cómo | Cuándo |
 |--------|------|--------|
 | Clientes (F) | RabbitMQ RPC: colas `clientes.listar` y `cliente.consultar` ([cliente_rpc.py](cliente_rpc.py)); requiere su `worker.py` | Al arrancar, al pulsar Actualizar y cuando llega un pedido de un cliente desconocido |
+| Productos (G) | API REST `GET /api/productos` (nombre, categoría, precio). Hay que poner su URL en `PRODUCTOS_URL`; no tiene valor por defecto | Al arrancar, al pulsar Actualizar y cuando llega un pedido con un producto desconocido |
 | Pedidos (E) | API REST `GET /api/pedidos` y `/api/pedidos/{id}` | Al arrancar y al pulsar Actualizar |
 | Pedidos / Pagos | Eventos RabbitMQ `PedidoCreado`, `PagoAprobado`, `PagoRechazado` en las colas propias `reportes_pedidos_queue` y `reportes_pagos_queue` | **En tiempo real** |
 

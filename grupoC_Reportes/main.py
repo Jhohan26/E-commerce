@@ -144,6 +144,11 @@ def pedidos_recientes():
 	return almacen.pedidos_recientes()
 
 
+@app.get("/reportes/stock")
+def stock():
+	return almacen.stock()
+
+
 @app.get("/reportes/cliente/{cliente_id}")
 def reporte_cliente(cliente_id: int):
 	rep = almacen.reporte_cliente(cliente_id)

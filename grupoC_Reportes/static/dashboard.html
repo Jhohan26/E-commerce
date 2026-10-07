@@ -75,6 +75,7 @@
 	.ico { width:48px; height:48px; border-radius:14px; display:grid; place-items:center; font-size:1.3rem; flex:none; }
 	.ico.brand { background:var(--brand-soft); color:var(--brand); } .ico.ok { background:var(--ok-soft); color:var(--ok); }
 	.ico.warn { background:var(--warn-soft); color:var(--warn); } .ico.info { background:var(--info-soft); color:var(--info); }
+	.ico.bad { background:var(--bad-soft); color:var(--bad); }
 	.kpi .v { font-size:1.65rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; }
 	.kpi .l { color:var(--mut); font-size:.83rem; margin-top:2px; }
 
@@ -85,6 +86,14 @@
 	.vacio { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--mut); font-size:.9rem; gap:8px; border:2px dashed var(--line); border-radius:14px; padding:14px; background:var(--card2); }
 	.vacio .i { width:2rem; height:2rem; opacity:.6; }
 	.chart.sin-datos canvas { visibility:hidden; } .chart.sin-datos .vacio { display:flex; }
+
+	/* ---- stock ---- */
+	.chips { display:flex; flex-wrap:wrap; gap:10px; margin:2px 0 16px; }
+	.chip { display:flex; align-items:center; gap:9px; padding:8px 14px; border-radius:12px; border:1px solid var(--line); background:var(--card2); font-size:.85rem; color:var(--mut); }
+	.chip b { font-size:1.15rem; color:var(--txt); letter-spacing:-.01em; }
+	.chip i { width:10px; height:10px; border-radius:50%; display:block; }
+	.nota { color:var(--mut); font-size:.8rem; margin:10px 0 0; }
+	.vacio small { max-width:380px; opacity:.85; }
 
 	/* ---- tabla ---- */
 	.tabla-w { overflow-x:auto; }
@@ -147,6 +156,7 @@
 	<symbol id="i-card" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></symbol>
 	<symbol id="i-box" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
 	<symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></symbol>
+	<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
 	<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
 </svg>
 
@@ -182,6 +192,7 @@
 		<div class="card kpi cargando"><div class="ico info"><svg class="i"><use href="#i-bag"/></svg></div><div><div class="v" id="k-pedidos">0</div><div class="l">Pedidos recibidos</div></div></div>
 		<div class="card kpi cargando"><div class="ico ok"><svg class="i"><use href="#i-usercheck"/></svg></div><div><div class="v" id="k-clientes">0</div><div class="l">Clientes que han comprado</div></div></div>
 		<div class="card kpi cargando"><div class="ico warn"><svg class="i"><use href="#i-clock"/></svg></div><div><div class="v" id="k-pend">0</div><div class="l">Pagos pendientes</div></div></div>
+		<div class="card kpi cargando"><div class="ico bad"><svg class="i"><use href="#i-alert"/></svg></div><div><div class="v" id="k-stock">–</div><div class="l">Productos con stock bajo</div></div></div>
 	</section>
 
 	<section class="grid">
@@ -201,6 +212,13 @@
 			<h2>Mejores clientes</h2><p class="sub">Quiénes más han comprado, en pesos</p>
 			<div class="chart" id="w-clientes"><canvas id="c-clientes"></canvas><div class="vacio"><svg class="i"><use href="#i-award"/></svg>Sin compras de clientes</div></div>
 		</div>
+	</section>
+
+	<section class="card" style="margin-bottom:18px">
+		<h2>Stock de productos</h2><p class="sub">Unidades disponibles según Inventario. Los productos con menos stock aparecen primero.</p>
+		<div class="chips" id="chips-stock"></div>
+		<div class="chart" id="w-stock" style="height:260px"><canvas id="c-stock"></canvas><div class="vacio"><svg class="i"><use href="#i-box"/></svg><span id="vacio-stock">Sin datos de stock</span></div></div>
+		<p class="nota" id="nota-stock"></p>
 	</section>
 
 	<section class="card" style="margin-bottom:18px">
@@ -317,9 +335,11 @@ function dibujarTodo(d) {
 			ctx.fillStyle = mut; ctx.font = "600 12px Inter,system-ui,sans-serif"; ctx.fillText("pedidos", x, y + 22); ctx.restore(); } }] }, pagos.length > 0);
 
 	dibujar("c-productos", { type:"bar",
-		data:{ labels:prods.map(p => "Producto #" + p.producto_id), datasets:[{ data:prods.map(p => Number(p.unidades)), backgroundColor:PALETA, borderRadius:8, borderSkipped:false, barThickness:22 }] },
+		data:{ labels:prods.map(p => p.nombre || "Producto #" + p.producto_id), datasets:[{ data:prods.map(p => Number(p.unidades)), backgroundColor:PALETA, borderRadius:8, borderSkipped:false, barThickness:22 }] },
 		options:{ indexAxis:"y", plugins:{ legend:{display:false}, tooltip:tip(c => c.parsed.x + " unidad(es)") },
 			scales:{ x:{ beginAtZero:true, border:{display:false}, ticks:{ precision:0 } }, y:{ grid:{display:false}, border:{display:false} } } } }, prods.length > 0);
+
+	dibujarStock(d);
 
 	const mc = res.mejores_clientes;
 	dibujar("c-clientes", { type:"bar",
@@ -328,13 +348,48 @@ function dibujarTodo(d) {
 			scales:{ x:{ beginAtZero:true, border:{display:false}, ticks:{ callback:v => peso(v), maxTicksLimit:4 } }, y:{ grid:{display:false}, border:{display:false} } } } }, mc.length > 0);
 }
 
+/* ---------- stock ---------- */
+const COL_NIVEL = { AGOTADO:"#e03e3e", BAJO:"#f0a30a", DISPONIBLE:"#12a150" };
+const NOMBRE_NIVEL = { AGOTADO:"Agotado", BAJO:"Stock bajo", DISPONIBLE:"Disponible" };
+const MAX_STOCK = 15;
+function dibujarStock(d) {
+	const { stock, inv } = d, r = stock.resumen, lista = stock.productos.slice(0, MAX_STOCK);
+	$("chips-stock").innerHTML = r.total ? [
+		["Disponibles", r.disponibles, COL_NIVEL.DISPONIBLE], ["Stock bajo", r.bajos, COL_NIVEL.BAJO],
+		["Agotados", r.agotados, COL_NIVEL.AGOTADO], ["Unidades en total", r.unidades, "var(--brand)"],
+	].map(([t, n, c]) => `<div class="chip"><i style="background:${c}"></i><b>${esc(n.toLocaleString("es-CO"))}</b>${esc(t)}</div>`).join("") : "";
+	$("nota-stock").textContent = r.total
+		? `Stock bajo: menos de ${stock.umbral} unidades.` + (r.total > MAX_STOCK ? ` Se muestran los ${MAX_STOCK} con menos stock de ${r.total}.` : "")
+		: "";
+	if (!r.total) {
+		$("vacio-stock").innerHTML = /sin configurar/.test(inv || "")
+			? "Esperando la API de Inventario<br><small>Cuando el grupo de Inventario tenga su API, pon su dirección en INVENTARIO_URL del archivo .env.</small>"
+			: /error/.test(inv || "") ? "No se pudo leer la API de Inventario<br><small>Revisa que el servicio esté encendido y que INVENTARIO_URL sea correcta.</small>"
+			: "Inventario no tiene productos registrados";
+	}
+	$("w-stock").style.height = Math.max(200, lista.length * 34 + 56) + "px";
+	dibujar("c-stock", { type:"bar",
+		data:{ labels:lista.map(p => p.nombre || "Producto #" + p.producto_id),
+			datasets:[{ data:lista.map(p => p.cantidad), backgroundColor:lista.map(p => COL_NIVEL[p.nivel]), borderRadius:8, borderSkipped:false, barThickness:20, minBarLength:6 }] },   // minBarLength: el agotado (0) deja una marca roja
+		options:{ indexAxis:"y", layout:{ padding:{ top:16, right:8 } }, plugins:{ legend:{display:false},
+				tooltip:tip(c => { const p = lista[c.dataIndex]; return `${c.parsed.x} unidad(es) · ${NOMBRE_NIVEL[p.nivel]}`; }) },
+			scales:{ x:{ beginAtZero:true, border:{display:false}, ticks:{ precision:0 } }, y:{ grid:{display:false}, border:{display:false} } } },
+		plugins:[{ id:"umbral", afterDatasetsDraw(ch) {          // línea punteada en el umbral de "stock bajo"
+			const { ctx, chartArea:a, scales:{ x } } = ch, px = x.getPixelForValue(stock.umbral);
+			if (px < a.left || px > a.right) return;
+			ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = COL_NIVEL.BAJO; ctx.lineWidth = 1.5;
+			ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke(); ctx.setLineDash([]);
+			ctx.fillStyle = COL_NIVEL.BAJO; ctx.font = "600 11px Inter,system-ui,sans-serif"; ctx.textAlign = "center";
+			ctx.fillText("mínimo " + stock.umbral, px, a.top - 4); ctx.restore(); } }] }, lista.length > 0);
+}
+
 /* ---------- carga de datos ---------- */
 async function cargar() {
 	try {
-		const [res, dias, pagos, prods, lista, recientes, st] = await Promise.all([
+		const [res, dias, pagos, prods, lista, recientes, st, stock] = await Promise.all([
 			get("/reportes/resumen"), get("/reportes/ventas-por-dia"), get("/reportes/pagos"), get("/reportes/top-productos"),
-			get("/clientes"), get("/reportes/pedidos-recientes"), get("/api/estado") ]);
-		clientes = lista; ultimo = { res, dias, pagos, prods };
+			get("/clientes"), get("/reportes/pedidos-recientes"), get("/api/estado"), get("/reportes/stock") ]);
+		clientes = lista; ultimo = { res, dias, pagos, prods, stock, inv: st.inventario };
 		document.querySelectorAll(".cargando").forEach(e => e.classList.remove("cargando"));
 		if (st.rabbit === "conectado") estado(true, "En vivo"); else estado(false, "Sin RabbitMQ: " + st.rabbit);
 
@@ -343,6 +398,7 @@ async function cargar() {
 		contar("k-ventas", res.ventas_aprobadas, peso);
 		contar("k-total-clientes", res.total_clientes); contar("k-pedidos", res.total_pedidos);
 		contar("k-clientes", res.clientes_con_compras); contar("k-pend", cant("PENDIENTE"));
+		if (stock.resumen.total) contar("k-stock", stock.resumen.bajos + stock.resumen.agotados); else $("k-stock").textContent = "–";
 		$("k-tasa").textContent = decididos ? tasa + " %" : "–";
 		$("aro-arco").style.strokeDashoffset = 314.16 * (1 - tasa / 100);
 		$("hero-sub").textContent = res.total_pedidos
@@ -357,7 +413,7 @@ async function cargar() {
 			<td><span class="tag ${esc(p.estado_pago)}">${esc(p.estado_pago)}</span></td></tr>`).join("")
 			: '<tr><td colspan="6" class="msg">Aún no hay pedidos.</td></tr>';
 		pintarClientes();
-		$("pie").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO") + " · Clientes: " + st.clientes + " · Pedidos: " + st.pedidos;
+		$("pie").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO") + " · Clientes: " + st.clientes + " · Pedidos: " + st.pedidos + " · Productos: " + st.productos + " · Inventario: " + st.inventario;
 	} catch (e) {
 		estado(false, "Sin conexión con Reportes");
 	}

@@ -4,6 +4,7 @@ Todo se reconstruye desde las APIs de los otros grupos al arrancar y se mantiene
 al día con los eventos de RabbitMQ. Cada cambio llama a `al_cambiar` para avisar
 al dashboard en el mismo instante.
 """
+import os
 import threading
 from collections import defaultdict
 from datetime import datetime
@@ -11,6 +12,9 @@ from datetime import datetime
 _lock = threading.RLock()
 clientes: dict[int, dict] = {}
 pedidos: dict[int, dict] = {}
+productos: dict[int, dict] = {}          # catálogo que entrega la API de Productos
+inventario: dict[int, dict] = {}         # existencias que entrega la API de Inventario
+STOCK_BAJO = int(os.getenv("STOCK_BAJO", "10"))   # mismo criterio que Inventario: por debajo = stock bajo
 _pagos_sin_pedido: dict[int, str] = {}   # pago que llegó antes que su pedido
 
 al_cambiar = lambda: None                # lo reemplaza main.py (avisa al navegador)
@@ -46,6 +50,30 @@ def reemplazar_clientes(lista: list) -> None:
 		cambio = nuevos != clientes
 		clientes.clear()
 		clientes.update(nuevos)
+	if cambio:
+		al_cambiar()
+
+
+def reemplazar_productos(lista: list) -> None:
+	"""lista: respuesta de GET /api/productos (id, nombre, precio, categoria...)."""
+	with _lock:
+		nuevos = {int(p["id"]): dict(producto_id=int(p["id"]), nombre=p.get("nombre"),
+									 categoria=p.get("categoria"), precio=float(p.get("precio") or 0)) for p in lista}
+		cambio = nuevos != productos
+		productos.clear()
+		productos.update(nuevos)
+	if cambio:
+		al_cambiar()
+
+
+def reemplazar_inventario(lista: list) -> None:
+	"""lista: respuesta de GET /api/inventario (producto_id, nombre, cantidad, actualizado)."""
+	with _lock:
+		nuevos = {int(p["producto_id"]): dict(producto_id=int(p["producto_id"]), nombre=p.get("nombre"),
+											  cantidad=int(p["cantidad"]), actualizado=p.get("actualizado")) for p in lista}
+		cambio = nuevos != inventario
+		inventario.clear()
+		inventario.update(nuevos)
 	if cambio:
 		al_cambiar()
 
@@ -132,7 +160,10 @@ def top_productos() -> list:
 			acc[x["producto_id"]][0] += x["cantidad"]
 			acc[x["producto_id"]][1] += x["cantidad"] * x["precio"]
 	orden = sorted(acc.items(), key=lambda x: -x[1][0])[:10]
-	return [dict(producto_id=i, unidades=v[0], ingresos=v[1]) for i, v in orden]
+	with _lock:
+		cat = dict(productos)
+	return [dict(producto_id=i, unidades=v[0], ingresos=v[1],
+				 nombre=cat.get(i, {}).get("nombre"), categoria=cat.get(i, {}).get("categoria")) for i, v in orden]
 
 
 def pedidos_recientes(n: int = 8) -> list:
@@ -142,6 +173,22 @@ def pedidos_recientes(n: int = 8) -> list:
 	return [dict(pedido_id=p["pedido_id"], cliente_id=p["cliente_id"], cliente=nombres.get(p["cliente_id"]),
 				 fecha=p["fecha"], total=p["total"], estado_pago=p["estado_pago"],
 				 unidades=sum(x["cantidad"] for x in p["productos"])) for p in ps]
+
+
+def stock() -> dict:
+	"""Existencias por producto, de menor a mayor, con su nivel (AGOTADO / BAJO / DISPONIBLE)."""
+	with _lock:
+		items = [dict(p) for p in inventario.values()]
+		catalogo = {i: p.get("nombre") for i, p in productos.items()}
+	for p in items:
+		p["nombre"] = p["nombre"] or catalogo.get(p["producto_id"])
+		p["nivel"] = "AGOTADO" if p["cantidad"] <= 0 else "BAJO" if p["cantidad"] < STOCK_BAJO else "DISPONIBLE"
+	items.sort(key=lambda p: (p["cantidad"], p["producto_id"]))
+	return dict(umbral=STOCK_BAJO, productos=items, resumen=dict(
+		total=len(items), unidades=sum(p["cantidad"] for p in items),
+		agotados=sum(p["nivel"] == "AGOTADO" for p in items),
+		bajos=sum(p["nivel"] == "BAJO" for p in items),
+		disponibles=sum(p["nivel"] == "DISPONIBLE" for p in items)))
 
 
 def lista_clientes() -> list:
@@ -171,7 +218,7 @@ def reporte_cliente(cliente_id: int) -> dict | None:
 			pagos_aprobados=cuenta("APROBADO"), pagos_rechazados=cuenta("RECHAZADO"),
 			pagos_pendientes=cuenta("PENDIENTE"),
 			ultimo_pedido=ps[0]["fecha"] if ps else None),
-		top_productos=[dict(producto_id=i, unidades=u)
+		top_productos=[dict(producto_id=i, unidades=u, nombre=productos.get(i, {}).get("nombre"))
 					   for i, u in sorted(unidades.items(), key=lambda x: -x[1])[:5]],
 		ultimos_pedidos=[{k: p[k] for k in ("pedido_id", "fecha", "total", "estado_pago")} for p in ps[:10]],
 	)
