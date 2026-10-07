@@ -116,3 +116,36 @@ def procesar_pedido(conn, pedido: dict) -> tuple[dict, bool]:
         )
     conn.commit()
     return evento, False
+
+def ajustar_cantidad(conn, producto_id: int, cantidad: int, motivo: str | None = None) -> dict:
+    """Fija la cantidad de un producto existente y deja registro del movimiento."""
+    if cantidad < 0:
+        raise ValueError("La cantidad no puede ser negativa")
+    motivo = (motivo or "").strip()[:200] or "Recuento"
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT cantidad FROM Inventario WHERE producto_id = %s FOR UPDATE",
+            (producto_id,),
+        )
+        fila = cur.fetchone()
+        if not fila:
+            conn.rollback()
+            raise LookupError("Producto no encontrado en el inventario")
+        cur.execute(
+            "UPDATE Inventario SET cantidad = %s WHERE producto_id = %s",
+            (cantidad, producto_id),
+        )
+        cur.execute(
+            "INSERT INTO MovimientoInventario "
+            "(producto_id, tipo, cantidad_anterior, cantidad_nueva, motivo) "
+            "VALUES (%s, 'AJUSTE', %s, %s, %s)",
+            (producto_id, fila["cantidad"], cantidad, motivo),
+        )
+        cur.execute(
+            "SELECT producto_id, nombre, cantidad, actualizado "
+            "FROM Inventario WHERE producto_id = %s",
+            (producto_id,),
+        )
+        resultado = cur.fetchone()
+    conn.commit()
+    return resultado

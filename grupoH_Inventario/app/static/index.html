@@ -6,17 +6,17 @@
 <title>Inventario</title>
 <style>
   :root {
-    --bg:#f5f6f8; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e4e7ee;
+    --bg:#f5f6f8; --card:#fff; --text:#1c2230; --muted:#6b7385; --line:#e4e7ee; --acc:#1f3a5f;
     --ok:#177245; --ok-bg:#e3f4ea; --warn:#9a6700; --warn-bg:#fff3d1; --bad:#b42318; --bad-bg:#fde7e5;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#12151c; --card:#1b1f29; --text:#e8ebf2; --muted:#98a0b3; --line:#2b3140;
+    :root { --bg:#12151c; --card:#1b1f29; --text:#e8ebf2; --muted:#98a0b3; --line:#2b3140; --acc:#7aa7e0;
       --ok:#5fd394; --ok-bg:#16301f; --warn:#f2c14e; --warn-bg:#3a2f12; --bad:#ff8f84; --bad-bg:#40191a; }
   }
   * { box-sizing:border-box; }
   body { margin:0; padding:24px 16px; background:var(--bg); color:var(--text);
          font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-  main { max-width:880px; margin:0 auto; }
+  main { max-width:1400px; margin:0 auto; }
   header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; }
   h1 { margin:0; font-size:22px; }
   .estado { font-size:13px; color:var(--muted); }
@@ -26,11 +26,13 @@
   .tarjeta { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; }
   .tarjeta span { display:block; font-size:12px; color:var(--muted); }
   .tarjeta strong { font-size:24px; }
-  input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+  #buscar { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
           background:var(--card); color:var(--text); font:inherit; margin-bottom:12px; }
+  #msg { min-height:22px; margin:0 0 8px; font-weight:600; }
+  #msg.ok { color:var(--ok); } #msg.err { color:var(--bad); }
   .tabla { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow-x:auto; }
   table { width:100%; border-collapse:collapse; }
-  th, td { padding:11px 16px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th, td { padding:10px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
   th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   tr:last-child td { border-bottom:0; }
   .num { text-align:right; font-variant-numeric:tabular-nums; }
@@ -39,6 +41,11 @@
   .b-bajo { color:var(--warn); background:var(--warn-bg); }
   .b-agotado { color:var(--bad); background:var(--bad-bg); }
   .vacio { padding:28px; text-align:center; color:var(--muted); }
+  td input { padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--text); font:inherit; }
+  td input.cant { width:70px; } td input.mot { width:140px; }
+  td button { padding:6px 14px; border:0; border-radius:6px; background:var(--acc); color:#fff; font:inherit; cursor:pointer; }
+  @media (prefers-color-scheme: dark) { td button { color:#12151c; } }
+  .modo { font-size:13px; color:var(--muted); margin:-6px 0 12px; }
 </style>
 </head>
 <body>
@@ -56,12 +63,12 @@
   </section>
 
   <input id="buscar" type="search" placeholder="Buscar por nombre o ID…" autocomplete="off">
+  <div id="modo" class="modo" hidden>Modo edición: estás en el equipo del módulo de Inventario, puedes ajustar las cantidades.</div>
+  <div id="msg"></div>
 
   <div class="tabla">
     <table>
-      <thead>
-        <tr><th>ID</th><th>Producto</th><th class="num">Cantidad</th><th>Estado</th><th>Actualizado</th></tr>
-      </thead>
+      <thead><tr id="encabezado"></tr></thead>
       <tbody id="filas"></tbody>
     </table>
     <div id="vacio" class="vacio" hidden>No hay productos para mostrar.</div>
@@ -71,6 +78,8 @@
 <script>
   let datos = [];
   let stockBajo = 10;
+  let editable = false;          // solo es true cuando la página se abre en el equipo del módulo
+  const pendiente = {};          // lo escrito en los campos y aún no guardado
   const $ = (id) => document.getElementById(id);
 
   function nivel(c) { return c <= 0 ? "agotado" : c <= stockBajo ? "bajo" : "ok"; }
@@ -82,6 +91,21 @@
     if (clase) td.className = clase;
     tr.appendChild(td);
     return td;
+  }
+
+  function aviso(texto, ok) { $("msg").textContent = texto; $("msg").className = ok ? "ok" : "err"; }
+
+  function encabezado() {
+    const cols = [["ID", ""], ["Producto", ""], ["Cantidad", "num"], ["Estado", ""], ["Actualizado", ""]];
+    if (editable) cols.push(["Nueva cantidad", ""], ["Motivo", ""], ["", ""]);
+    const tr = $("encabezado");
+    tr.replaceChildren();
+    for (const [t, c] of cols) {
+      const th = document.createElement("th");
+      th.textContent = t;
+      if (c) th.className = c;
+      tr.appendChild(th);
+    }
   }
 
   function pintar() {
@@ -103,7 +127,26 @@
       b.textContent = etiqueta[n];
       td.appendChild(b);
       tr.appendChild(td);
-      celda(tr, p.actualizado ? new Date(p.actualizado).toLocaleString("es-CO") : "–");
+      celda(tr, p.actualizado ? new Date(p.actualizado).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" }) : "–");
+
+      if (editable) {
+        const pen = pendiente[p.producto_id] || {};
+        const cant = document.createElement("input");
+        cant.type = "number"; cant.min = "0"; cant.className = "cant";
+        cant.value = pen.cant !== undefined ? pen.cant : p.cantidad;
+        const mot = document.createElement("input");
+        mot.type = "text"; mot.maxLength = 200; mot.className = "mot"; mot.placeholder = "Recuento";
+        mot.value = pen.mot !== undefined ? pen.mot : "";
+        const recordar = () => { pendiente[p.producto_id] = { cant: cant.value, mot: mot.value }; };
+        cant.addEventListener("input", recordar);
+        mot.addEventListener("input", recordar);
+        const btn = document.createElement("button");
+        btn.textContent = "Guardar";
+        btn.addEventListener("click", () => guardar(p, cant, mot));
+        celda(tr, "").appendChild(cant);
+        celda(tr, "").appendChild(mot);
+        celda(tr, "").appendChild(btn);
+      }
       tbody.appendChild(tr);
     }
     $("vacio").hidden = lista.length > 0;
@@ -114,14 +157,42 @@
     $("r-agotado").textContent = datos.filter(p => nivel(p.cantidad) === "agotado").length;
   }
 
-  async function cargar() {
+  async function guardar(p, cant, mot) {
+    const valor = parseInt(cant.value, 10);
+    if (Number.isNaN(valor) || valor < 0) {
+      aviso("La cantidad debe ser un número entero mayor o igual a 0.", false);
+      return;
+    }
+    try {
+      const r = await fetch("/api/admin/inventario/" + p.producto_id, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cantidad: valor, motivo: mot.value })
+      });
+      if (r.ok) {
+        delete pendiente[p.producto_id];
+        aviso((p.nombre || "Producto " + p.producto_id) + ": cantidad actualizada a " + valor + ".", true);
+        await cargar(true);
+      } else {
+        const e = await r.json().catch(() => ({}));
+        aviso(typeof e.detail === "string" ? e.detail : "No se pudo guardar.", false);
+      }
+    } catch (e) {
+      aviso("No se pudo conectar con el servicio.", false);
+    }
+  }
+
+  async function cargar(forzar) {
     try {
       const r = await fetch("/api/inventario");
       if (!r.ok) throw new Error(r.status);
       datos = await r.json();
       $("punto").className = "punto";
       $("estado").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO");
-      pintar();
+      // No repintar mientras se escribe en un campo, para no perder lo que se está tecleando
+      const a = document.activeElement;
+      const escribiendo = editable && !forzar && a && a.tagName === "INPUT" && a.closest("#filas");
+      if (!escribiendo) pintar();
     } catch (e) {
       $("punto").className = "punto off";
       $("estado").textContent = "Sin conexión con el servicio";
@@ -130,8 +201,11 @@
 
   (async () => {
     try { stockBajo = (await (await fetch("/api/config")).json()).stock_bajo; } catch (e) {}
+    try { editable = (await (await fetch("/api/admin/estado")).json()).editable === true; } catch (e) {}
+    $("modo").hidden = !editable;
+    encabezado();
     $("buscar").addEventListener("input", pintar);
-    await cargar();
+    await cargar(true);
     setInterval(cargar, 5000);   // refresco automático cada 5 s
   })();
 </script>
