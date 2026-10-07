@@ -1,0 +1,8 @@
+{
+  "evento": "PedidoCreado",
+  "pedidoId": 1001,
+  "clienteId": 25,
+  "fecha": "2026-10-01T10:30:00",
+  "total": 5000000,
+  "productos": [{ "productoId": 15, "cantidad": 2, "precio": 2500000 }]
+}
