@@ -15,7 +15,6 @@ export class ClientRpc {
       const correlationId = randomUUID();
       let resolve, reject;
       const response = new Promise((res, rej) => { resolve = res; reject = rej; });
-      // Gestionar rechazo incluso si consume falla antes de esperar la respuesta.
       response.catch(() => {});
       const closed = () => reject(new Error('CLIENT_RPC_CLOSED'));
       connection.on('close', closed);

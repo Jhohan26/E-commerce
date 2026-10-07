@@ -6,7 +6,6 @@ export class NotificationRepository {
     if (path !== ':memory:') mkdirSync(dirname(resolve(path)), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;');
-    // Migrar el modelo anterior sin alterar identificadores ni mensajes guardados.
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const legacy = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='notificaciones'").get();
@@ -41,7 +40,6 @@ export class NotificationRepository {
   save(event, content, key, enqueueEmail = false) {
     this.db.exec('BEGIN IMMEDIATE');
     try {
-    // INSERT atómico: la restricción UNIQUE evita duplicados tras una redelivery.
     const result = this.db.prepare(`INSERT INTO Notificacion
       (Cliente_id,Pedido_id,tipoEvento,titulo,mensaje,fecha,claveEvento,fechaEvento)
       VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(claveEvento) DO NOTHING`).run(

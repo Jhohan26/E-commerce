@@ -14,7 +14,6 @@ export function handleDelivery(message, channel, service, log, config = {}) {
     log.error('mensaje_invalido', { motivo: 'Origen no admitido' });
     channel.nack(message, false, false); return;
   }
-  // Fanout también entrega eventos válidos que no requieren notificación.
   if (source?.type === 'fanout' && source.events && payload && typeof payload === 'object' &&
       payload.evento === 'InventarioActualizado' && source.exchange === 'inventario_exchange') {
     log.info('evento_sin_notificacion', { tipoEvento: payload.evento });
@@ -33,7 +32,6 @@ export function handleDelivery(message, channel, service, log, config = {}) {
       log.error('mensaje_invalido', { motivo: error.message });
       channel.nack(message, false, false);
     } else {
-      // El supervisor cierra la conexión y reconecta con pausa: entrega sin ACK se recupera.
       log.error('procesamiento_fallido', { tipoEvento: payload?.evento });
       throw error;
     }
