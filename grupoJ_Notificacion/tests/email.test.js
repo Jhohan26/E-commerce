@@ -39,6 +39,6 @@ test('Error de outbox revierte también la notificación antes del ACK', () => {
   try {
     repo.db.exec('DROP TABLE EmailJob');
     assert.throws(() => new NotificationService(repo, true).process(event));
-    assert.equal(repo.list().length, 0);
+    assert.equal(repo.db.prepare('SELECT COUNT(*) AS n FROM Notificacion').get().n, 0);
   } finally { repo.close(); }
 });

@@ -65,16 +65,23 @@ export class NotificationRepository {
   }
   list({ clienteId, limit = 100, offset = 0 } = {}) {
     const sql = clienteId === undefined
-      ? this.db.prepare('SELECT * FROM Notificacion ORDER BY id DESC LIMIT ? OFFSET ?').all(limit, offset)
-      : this.db.prepare('SELECT * FROM Notificacion WHERE Cliente_id=? ORDER BY id DESC LIMIT ? OFFSET ?').all(clienteId, limit, offset);
+      ? this.db.prepare(`${selectWithEmail} ORDER BY n.id DESC LIMIT ? OFFSET ?`).all(limit, offset)
+      : this.db.prepare(`${selectWithEmail} WHERE n.Cliente_id=? ORDER BY n.id DESC LIMIT ? OFFSET ?`).all(clienteId, limit, offset);
     return sql.map(map);
   }
-  get(id) { return map(this.db.prepare('SELECT * FROM Notificacion WHERE id=?').get(id)); }
+  get(id) { return map(this.db.prepare(`${selectWithEmail} WHERE n.id=?`).get(id)); }
   markRead(id) { this.db.prepare('UPDATE Notificacion SET leida=1 WHERE id=?').run(id); return this.get(id); }
   close() { this.db.close(); }
 }
+const selectWithEmail = `SELECT n.*, e.state AS emailState, e.attempts AS emailAttempts,
+  e.nextAttempt AS emailNextAttempt, e.lastError AS emailLastError, e.acceptedAt AS emailAcceptedAt
+  FROM Notificacion n LEFT JOIN EmailJob e ON e.notificationId=n.id`;
 function map(row) {
   if (!row) return null;
-  const { claveEvento, fechaEvento, Cliente_id, Pedido_id, ...publicFields } = row;
-  return { ...publicFields, clienteId: Cliente_id, pedidoId: Pedido_id, leida: Boolean(row.leida) };
+  const { claveEvento, fechaEvento, Cliente_id, Pedido_id, emailState, emailAttempts,
+    emailNextAttempt, emailLastError, emailAcceptedAt, ...publicFields } = row;
+  return { ...publicFields, clienteId: Cliente_id, pedidoId: Pedido_id, leida: Boolean(row.leida),
+    correo: { estado: emailState || 'not_scheduled', intentosFallidos: emailAttempts || 0,
+      proximoIntento: emailState === 'pending' && emailNextAttempt ? new Date(emailNextAttempt).toISOString() : null,
+      motivo: emailLastError || null, aceptadoEn: emailAcceptedAt || null } };
 }

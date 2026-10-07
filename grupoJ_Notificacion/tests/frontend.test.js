@@ -7,6 +7,23 @@ import { NotificationService } from '../src/services/notificationService.js';
 import { createApp } from '../src/app.js';
 const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 const script = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+test('Frontend muestra estados de correo y los conserva al marcar como leída', async t => {
+  const ui = await setup(t, 4);
+  const items = ui.repo.list();
+  const insert = ui.repo.db.prepare('INSERT INTO EmailJob(notificationId,messageId,state,attempts,lastError) VALUES (?,?,?,?,?)');
+  insert.run(items[0].id, 'pending', 'pending', 1, 'CLIENT_RPC_TIMEOUT');
+  insert.run(items[1].id, 'accepted', 'accepted', 0, null);
+  insert.run(items[2].id, 'failed', 'failed', 5, 'CLIENT_RECIPIENT_INVALID');
+  await ui.apply();
+  const statuses = () => [...ui.dom.window.document.querySelectorAll('.email-status')].map(n => n.textContent);
+  assert.ok(statuses().some(s => s.includes('Correo pendiente') && s.includes('Clientes no respondió')));
+  assert.ok(statuses().some(s => s.includes('Correo aceptado por el proveedor')));
+  assert.ok(statuses().some(s => s.includes('Correo fallido') && s.includes('Cliente o correo no válido')));
+  assert.ok(statuses().some(s => s.includes('Correo no programado')));
+  ui.query('.mark-read').click();
+  await until(() => ui.query('#read').textContent === '1');
+  assert.ok(statuses().some(s => s.includes('Correo pendiente')));
+});
 async function until(check) {
   const end = Date.now() + 5000;
   while (Date.now() < end) { if (check()) return; await new Promise(resolve => setTimeout(resolve, 15)); }
