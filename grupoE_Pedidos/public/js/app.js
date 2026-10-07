@@ -4,7 +4,8 @@ import {
   ESTADOS, estadoMeta, escapeHtml, formatMoney, formatNumber,
   formatDateParts, formatDateTime, debounce, statusChipHtml,
   getClienteInfo, getClienteNombre, getProductoInfo, getProductoNombre,
-  getProductoIcono, iniciales, CLIENTES_CATALOGO, PRODUCTOS_CATALOGO
+  getProductoIcono, iniciales, CLIENTES_CATALOGO, PRODUCTOS_CATALOGO,
+  actualizarClientesCatalogo
 } from './utils.js';
 
 const PAGE_SIZE = 10;
@@ -524,11 +525,28 @@ function updatePreview() {
   el.eventPreview.textContent = JSON.stringify(evento, null, 2);
 }
 
+async function cargarClientes() {
+  try {
+    const data = await api.clientes();
+    if (data && Array.isArray(data.clientes)) {
+      actualizarClientesCatalogo(data.clientes);
+      populateDatalists();
+      if (data.clientes.length === 0) {
+        el.clienteHelp.textContent = 'Servicio de Clientes conectado (Grupo F), pero aún no tiene clientes creados en su base de datos.';
+      } else {
+        el.clienteHelp.textContent = `${data.clientes.length} cliente(s) obtenido(s) desde el Grupo F.`;
+      }
+    }
+  } catch (err) {
+    console.warn('[Clientes] No se pudieron sincronizar los clientes vía RPC:', err.message);
+  }
+}
+
 function updateClienteCard() {
   const val = Number(el.cliente.value);
   if (!val) {
     el.clientCard.hidden = true;
-    el.clienteHelp.textContent = 'Debe existir en el servicio de Clientes.';
+    el.clienteHelp.textContent = 'Debe existir en el servicio de Clientes (Grupo F).';
     return;
   }
   const info = getClienteInfo(val);
@@ -536,14 +554,26 @@ function updateClienteCard() {
     el.clientCard.hidden = false;
     el.clientAvatar.textContent = iniciales(info.nombre);
     el.clientName.textContent = info.nombre;
-    el.clientMeta.textContent = `Cliente #${info.id} · ${info.ciudad}`;
-    el.clienteHelp.textContent = `Cliente identificado en catálogo: ${info.nombre}.`;
+    const metaParts = [];
+    if (info.correo) metaParts.push(info.correo);
+    else if (info.ciudad) metaParts.push(info.ciudad);
+    metaParts.push(`Cliente #${info.id}`);
+    el.clientMeta.textContent = metaParts.join(' · ');
+
+    if (info.activo === false || info.estado === 0) {
+      el.clienteHelp.textContent = '⚠️ Atención: Este cliente figura como inactivo en el servicio de Clientes.';
+      el.clientCheck.style.color = '#ef4444';
+    } else {
+      el.clienteHelp.textContent = `Cliente verificado desde el servicio de Clientes (Grupo F).`;
+      el.clientCheck.style.color = '';
+    }
   } else {
     el.clientCard.hidden = false;
     el.clientAvatar.textContent = `#${val}`;
     el.clientName.textContent = `Cliente #${val}`;
-    el.clientMeta.textContent = 'Registro externo / servicio de Clientes';
-    el.clienteHelp.textContent = 'Se validará la existencia en el servicio de Clientes.';
+    el.clientMeta.textContent = 'No registrado en Grupo F';
+    el.clienteHelp.textContent = 'Este ID no existe en la base de datos de Clientes.';
+    el.clientCheck.style.color = '#eab308';
   }
 }
 
@@ -603,6 +633,7 @@ function validateForm() {
 
 function openNew() {
   if (!el.lines.children.length) addLine();
+  cargarClientes();
   updateClienteCard();
   updatePreview();
   openDialog(el.drawerNew);
@@ -949,7 +980,11 @@ function populateDatalists() {
   const cl = $('clientes-datalist');
   if (cl) {
     cl.innerHTML = Object.values(CLIENTES_CATALOGO)
-      .map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)} · #${c.id} · ${escapeHtml(c.ciudad)}</option>`)
+      .map((c) => {
+        const extra = c.correo ? ` · ${escapeHtml(c.correo)}` : (c.ciudad ? ` · ${escapeHtml(c.ciudad)}` : '');
+        const inactivo = (c.activo === false || c.estado === 0) ? ' [DESACTIVADO]' : '';
+        return `<option value="${c.id}">${escapeHtml(c.nombre)} · #${c.id}${extra}${inactivo}</option>`;
+      })
       .join('');
   }
   const pl = $('productos-datalist');
@@ -974,6 +1009,7 @@ window.addEventListener('keydown', (e) => {
 try { el.toasts.showPopover(); } catch {}
 
 populateDatalists();
+cargarClientes();
 addLine();
 renderSkeleton();
 checkHealth();

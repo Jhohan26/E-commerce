@@ -70,13 +70,25 @@ export function statusChipHtml(value) {
   return `<span class="chip chip-${meta.tone}"><span class="chip-dot" aria-hidden="true"></span>${escapeHtml(meta.label)}</span>`;
 }
 
-// Catálogo local de referencia (Clientes y Productos)
-export const CLIENTES_CATALOGO = {
-  25: { id: 25, nombre: 'Carlos Gómez', ciudad: 'Bogotá' },
-  30: { id: 30, nombre: 'María Rodríguez', ciudad: 'Medellín' },
-  1:  { id: 1,  nombre: 'Empresas Unidas S.A.S.', ciudad: 'Cali' },
-  10: { id: 10, nombre: 'Ana Martínez', ciudad: 'Barranquilla' }
-};
+// Catálogo dinámico de Clientes (obtenido exclusivamente del Grupo F)
+export let CLIENTES_CATALOGO = {};
+
+export function actualizarClientesCatalogo(lista) {
+  CLIENTES_CATALOGO = {};
+  if (Array.isArray(lista) && lista.length > 0) {
+    lista.forEach((c) => {
+      CLIENTES_CATALOGO[Number(c.id)] = {
+        id: Number(c.id),
+        nombre: c.nombre,
+        ciudad: c.ciudad || '',
+        correo: c.correo || '',
+        estado: c.estado,
+        activo: c.activo !== false,
+        origen: c.origen || 'grupoF'
+      };
+    });
+  }
+}
 
 export const PRODUCTOS_CATALOGO = {
   15: { id: 15, nombre: 'Portátil Gamer 15" Core i7', precio: 2500000, icono: 'laptop' },
