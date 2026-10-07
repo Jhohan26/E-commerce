@@ -15,6 +15,13 @@ services:
       RABBITMQ_PREFETCH: ${RABBITMQ_PREFETCH:-10}
       RABBITMQ_RECONNECT_MS: ${RABBITMQ_RECONNECT_MS:-5000}
       DATABASE_PATH: /app/data/notificaciones.sqlite
+      EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     ports:
       - "127.0.0.1:${HOST_PORT:-3010}:3000"
     volumes:

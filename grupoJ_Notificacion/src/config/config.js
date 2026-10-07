@@ -27,6 +27,15 @@ export function loadConfig(env = process.env) {
     port: positive(env.PORT, 3000, 'PORT'),
     databasePath: env.DATABASE_PATH || './data/notificaciones.sqlite',
     rabbitUrl, sources,
+    email: {
+      enabled: env.EMAIL_ENABLED === 'true',
+      host: env.SMTP_HOST || 'smtp.gmail.com', port: positive(env.SMTP_PORT, 587, 'SMTP_PORT'),
+      secure: env.SMTP_SECURE === 'true', user: env.SMTP_USER || '',
+      password: (env.SMTP_PASSWORD || '').replace(/\s/g, ''), from: env.SMTP_FROM || env.SMTP_USER || '',
+      maxAttempts: positive(env.EMAIL_MAX_ATTEMPTS, 5, 'EMAIL_MAX_ATTEMPTS'),
+      intervalMs: positive(env.EMAIL_INTERVAL_MS, 5000, 'EMAIL_INTERVAL_MS'),
+      rpcTimeoutMs: positive(env.CLIENTES_RPC_TIMEOUT_MS, 10000, 'CLIENTES_RPC_TIMEOUT_MS')
+    },
     heartbeat: positive(env.RABBITMQ_HEARTBEAT, 30, 'RABBITMQ_HEARTBEAT'),
     maxMessageBytes: positive(env.RABBITMQ_MAX_MESSAGE_BYTES, 262144, 'RABBITMQ_MAX_MESSAGE_BYTES'),
     exchange: env.RABBITMQ_EXCHANGE || 'comercio.eventos', exchangeType,
