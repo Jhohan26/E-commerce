@@ -4,6 +4,7 @@ Todo se reconstruye desde las APIs de los otros grupos al arrancar y se mantiene
 al día con los eventos de RabbitMQ. Cada cambio llama a `al_cambiar` para avisar
 al dashboard en el mismo instante.
 """
+import json
 import os
 import threading
 from collections import defaultdict
@@ -17,6 +18,38 @@ inventario: dict[int, dict] = {}         # existencias que entrega la API de Inv
 STOCK_BAJO = int(os.getenv("STOCK_BAJO", "10"))   # mismo criterio que Inventario: por debajo = stock bajo
 _pagos_sin_pedido: dict[int, str] = {}   # pago que llegó antes que su pedido
 
+# Respaldo en disco de los pedidos y pagos recibidos por RabbitMQ (no es una base de datos: es una copia de lo
+# recibido, para no perderlo si la API se reinicia). Se apaga con RESPALDO=0 en el .env.
+RESPALDO = os.getenv("RESPALDO", "1") != "0"
+_RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datos", "respaldo.json")
+
+
+def _guardar_respaldo():
+	if not RESPALDO:
+		return
+	try:
+		os.makedirs(os.path.dirname(_RUTA), exist_ok=True)
+		with open(_RUTA + ".tmp", "w", encoding="utf-8") as f:
+			json.dump({"pedidos": list(pedidos.values()), "pagos_sin_pedido": _pagos_sin_pedido}, f, ensure_ascii=False)
+		os.replace(_RUTA + ".tmp", _RUTA)
+	except OSError:
+		pass
+
+
+def _cargar_respaldo():
+	if not RESPALDO or not os.path.exists(_RUTA):
+		return
+	try:
+		with open(_RUTA, encoding="utf-8") as f:
+			d = json.load(f)
+		for p in d.get("pedidos", []):
+			pedidos[int(p["pedido_id"])] = p
+		_pagos_sin_pedido.update({int(k): v for k, v in d.get("pagos_sin_pedido", {}).items()})
+	except (OSError, ValueError, KeyError, TypeError):
+		pass
+
+
+_cargar_respaldo()
 al_cambiar = lambda: None                # lo reemplaza main.py (avisa al navegador)
 
 # Pedidos guarda su propio estado; Reportes lo traduce a estado de pago.
@@ -96,6 +129,8 @@ def guardar_pedido(p: dict, estado_pedido: str | None = None) -> bool:
 									 precio=float(x["precio"])) for x in p.get("productos", [])])
 		cambio = previo != nuevo
 		pedidos[pid] = nuevo
+		if cambio:
+			_guardar_respaldo()
 	if cambio:
 		al_cambiar()
 	return cambio
@@ -111,6 +146,7 @@ def registrar_pago(pedido_id: int, aprobado: bool) -> None:
 		else:
 			_pagos_sin_pedido[pedido_id] = estado
 			cambio = False
+		_guardar_respaldo()
 	if cambio:
 		al_cambiar()
 

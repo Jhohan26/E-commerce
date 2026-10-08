@@ -34,6 +34,10 @@ class ClientesError(Exception):
 		self.detalle = detalle
 
 
+class SinRespuesta(Exception):
+	"""RabbitMQ conectó, pero el worker de Clientes no contestó a tiempo (probablemente está apagado)."""
+
+
 class ClienteRPC:
 	def __init__(self, url: str | None = None):
 		url = url or os.getenv("AMQP_URL")
@@ -41,6 +45,10 @@ class ClienteRPC:
 			raise ClientesError(502, "Falta AMQP_URL en el .env")
 		params = pika.URLParameters(url)
 		params.heartbeat = 30
+		params.socket_timeout = 10
+		params.stack_timeout = 30          # la conexión TLS a CloudAMQP a veces tarda más de los 15 s por defecto
+		params.connection_attempts = 3
+		params.retry_delay = 2
 		self.connection = pika.BlockingConnection(params)
 		self.channel = self.connection.channel()
 		self.cola_respuesta = self.channel.queue_declare(queue="", exclusive=True).method.queue
@@ -71,7 +79,7 @@ class ClienteRPC:
 		while self.respuesta is None and time.monotonic() < limite:
 			self.connection.process_data_events(time_limit=1)
 		if self.respuesta is None:
-			raise TimeoutError("El worker de Clientes no respondió a tiempo")
+			raise SinRespuesta("El worker de Clientes no respondió a tiempo")
 		return self.respuesta
 
 	def cerrar(self):
@@ -85,10 +93,12 @@ def _llamar(cola: str, payload: dict | None = None):
 			respuesta = rpc.llamar(cola, payload)
 		finally:
 			rpc.cerrar()
-	except TimeoutError:
-		raise ClientesError(502, "El worker de Clientes no respondió (¿está corriendo worker.py?)")
-	except pika.exceptions.AMQPError:
-		raise ClientesError(502, "No se pudo conectar con RabbitMQ")
+	except ClientesError:
+		raise
+	except SinRespuesta:
+		raise ClientesError(502, "RabbitMQ conectó, pero el worker de Clientes no respondió. ¿Está corriendo su worker.py?")
+	except Exception as e:                 # pika (AMQPError, AMQPConnectorException...), sockets, TLS...
+		raise ClientesError(502, f"No se pudo conectar con RabbitMQ ({type(e).__name__}). Revisa tu internet y AMQP_URL")
 	if respuesta.get("status") != 200:
 		raise ClientesError(respuesta.get("status", 500), respuesta.get("error", "Error en Clientes"))
 	return respuesta["data"]

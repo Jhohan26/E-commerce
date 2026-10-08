@@ -1,9 +1,12 @@
 """Conexiones de Reportes con los otros microservicios.
 
 - Clientes: RabbitMQ RPC (cliente_rpc.py) o, sin AMQP_URL, HTTP.
-- Pedidos: API REST al arrancar y como respaldo; en tiempo real por eventos.
-- Eventos (PedidoCreado, PagoAprobado, PagoRechazado): hilo consumidor de RabbitMQ.
+- Pedidos, Productos, Inventario: APIs REST (al arrancar, al pulsar Actualizar y como respaldo).
+- Eventos (PedidoCreado, PagoAprobado, PagoRechazado, InventarioActualizado): hilo consumidor de RabbitMQ.
 Todo lo recibido se guarda en `almacen` (memoria), que avisa al dashboard.
+
+Cada servicio tiene su propio estado en `estado` (ok / error / sin_configurar / pendiente) con el MOTIVO,
+para que el dashboard explique qué está fallando. Ningún error de red debe matar un hilo.
 """
 import json
 import logging
@@ -22,8 +25,8 @@ load_dotenv()
 
 AMQP_URL = os.getenv("AMQP_URL", "")
 CLIENTES_URL = os.getenv("CLIENTES_URL", "http://localhost:8000")
-PEDIDOS_URL = os.getenv("PEDIDOS_URL", "http://localhost:3000")
-PRODUCTOS_URL = os.getenv("PRODUCTOS_URL", "").rstrip("/")   # sin valor por defecto: no se adivina el puerto
+PEDIDOS_URL = os.getenv("PEDIDOS_URL", "http://localhost:3000").rstrip("/")
+PRODUCTOS_URL = os.getenv("PRODUCTOS_URL", "").rstrip("/")    # sin valor por defecto: no se adivina el puerto
 INVENTARIO_URL = os.getenv("INVENTARIO_URL", "").rstrip("/")  # idem (el README de Inventario sugiere el puerto 8005)
 CLIENTES_RPC = os.getenv("CLIENTES_MODO", "rpc" if AMQP_URL else "http") == "rpc"
 # Clientes no publica eventos: este respaldo vuelve a pedirle sus datos cada N segundos (0 = apagado).
@@ -39,13 +42,30 @@ EXCHANGES_PAGOS = [x.strip() for x in os.getenv("AMQP_EXCHANGES_PAGOS", "ecommer
 CLAVES_PAGOS = ("pago.aprobado", "pago.rechazado")  # las ignora un exchange fanout
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logging.getLogger("pika").setLevel(logging.WARNING)
+logging.getLogger("pika").setLevel(logging.CRITICAL)   # los errores de pika se explican en el estado y en nuestros mensajes
 log = logging.getLogger("reportes")
 
-estado = {"clientes": "pendiente", "pedidos": "pendiente",
-		  "productos": "pendiente" if PRODUCTOS_URL else "sin configurar (PRODUCTOS_URL)",
-		  "inventario": "pendiente" if INVENTARIO_URL else "sin configurar (INVENTARIO_URL)",
-		  "rabbit": "conectando…" if AMQP_URL else "sin AMQP_URL"}
+
+# ---------- estado de cada servicio (lo muestra el dashboard) ----------
+def _nuevo(etiqueta: str, via: str) -> dict:
+	return dict(etiqueta=etiqueta, via=via, estado="pendiente", detalle="", cantidad=None, hora=None)
+
+
+estado = {
+	"clientes": _nuevo("Clientes", "RabbitMQ · worker de Clientes" if CLIENTES_RPC else CLIENTES_URL),
+	"pedidos": _nuevo("Pedidos (API)", PEDIDOS_URL),
+	"rabbit": _nuevo("Pedidos y pagos en vivo", "RabbitMQ"),
+	"productos": _nuevo("Productos (API)", PRODUCTOS_URL or "sin dirección"),
+	"inventario": _nuevo("Inventario (API)", INVENTARIO_URL or "sin dirección"),
+}
+for _clave, _var, _url in (("productos", "PRODUCTOS_URL", PRODUCTOS_URL), ("inventario", "INVENTARIO_URL", INVENTARIO_URL)):
+	if not _url:
+		estado[_clave].update(estado="sin_configurar", detalle=f"Falta poner la dirección del servicio en {_var} del archivo .env")
+if not AMQP_URL:
+	estado["rabbit"].update(estado="sin_configurar", detalle="Falta AMQP_URL en el archivo .env")
+	if CLIENTES_RPC:
+		estado["clientes"].update(estado="sin_configurar", detalle="Falta AMQP_URL en el archivo .env")
+
 _enlazados: set = set()
 
 
@@ -55,10 +75,25 @@ class FuenteError(Exception):
 		self.status, self.detalle = status, detalle
 
 
-def _estado(clave: str, valor: str):
-	if estado.get(clave) != valor:
-		estado[clave] = valor
+def _estado(clave: str, valor: str, detalle: str = "", cantidad=None):
+	e = estado[clave]
+	cambio = (e["estado"], e["detalle"], e["cantidad"]) != (valor, detalle, cantidad)
+	e.update(estado=valor, detalle=detalle, cantidad=cantidad, hora=time.strftime("%H:%M:%S"))
+	if cambio:
 		almacen.al_cambiar()
+
+
+def _motivo(e: Exception, url: str, nombre: str) -> str:
+	"""Explica en español por qué falló una llamada, para mostrarlo en el dashboard."""
+	if isinstance(e, requests.Timeout) and not isinstance(e, requests.ConnectionError):
+		return f"{nombre} tardó demasiado en responder ({url})"
+	if isinstance(e, requests.ConnectionError):
+		return f"No responde en {url}. ¿Está encendido el servicio de {nombre} y es correcta la dirección?"
+	if isinstance(e, requests.HTTPError):
+		return f"{nombre} respondió con error {e.response.status_code} en {url}"
+	if isinstance(e, (ValueError, KeyError, TypeError, AttributeError)):
+		return f"{nombre} respondió con un formato que Reportes no entiende ({type(e).__name__})"
+	return f"Error inesperado al consultar {nombre}: {type(e).__name__}"
 
 
 # ---------- Clientes ----------
@@ -88,76 +123,69 @@ def cargar_clientes() -> int:
 			r = requests.get(f"{CLIENTES_URL}/clientes", timeout=10)
 			r.raise_for_status()
 			lista = r.json()
-	except (cliente_rpc.ClientesError, requests.RequestException) as e:
-		_estado("clientes", "error: " + str(getattr(e, "detalle", e))[:80])
-		raise FuenteError(502, estado["clientes"])
-	almacen.reemplazar_clientes(lista)
-	_estado("clientes", "ok")
+		almacen.reemplazar_clientes(lista)
+	except cliente_rpc.ClientesError as e:
+		_estado("clientes", "error", e.detalle)
+		raise FuenteError(502, e.detalle)
+	except Exception as e:
+		d = _motivo(e, CLIENTES_URL, "Clientes")
+		_estado("clientes", "error", d)
+		raise FuenteError(502, d)
+	_estado("clientes", "ok", cantidad=len(lista))
 	return len(lista)
 
 
-# ---------- Pedidos ----------
-def _pedidos_get(ruta: str):
-	r = requests.get(f"{PEDIDOS_URL}{ruta}", timeout=10)
-	r.raise_for_status()
-	return r.json()
+# ---------- APIs REST: Pedidos, Productos, Inventario ----------
+def _cargar_rest(clave: str, base: str, ruta: str, guardar, nombre: str, variable: str) -> int:
+	if not base:
+		raise FuenteError(503, f"Falta poner la dirección en {variable} del archivo .env")
+	try:
+		r = requests.get(f"{base}{ruta}", timeout=10)
+		r.raise_for_status()
+		lista = r.json()
+		guardar(lista)
+	except Exception as e:
+		d = _motivo(e, base, nombre)
+		_estado(clave, "error", d)
+		raise FuenteError(502, d)
+	_estado(clave, "ok", cantidad=len(lista))
+	return len(lista)
 
 
 def cargar_pedidos() -> int:
+	"""GET /api/pedidos y, por cada pedido, GET /api/pedidos/{id} (trae los productos)."""
 	try:
-		datos = _pedidos_get("/api/pedidos")
+		r = requests.get(f"{PEDIDOS_URL}/api/pedidos", timeout=10)
+		r.raise_for_status()
+		datos = r.json()
 		lista = datos if isinstance(datos, list) else datos.get("pedidos", [])
 		for resumen in lista:
-			d = _pedidos_get(f"/api/pedidos/{resumen['id']}")
+			r = requests.get(f"{PEDIDOS_URL}/api/pedidos/{resumen['id']}", timeout=10)
+			r.raise_for_status()
+			d = r.json()
 			p = d.get("pedido", d)
 			almacen.guardar_pedido(dict(pedidoId=p["id"], clienteId=p["clienteId"], fecha=p["fecha"],
 										total=p["total"], productos=p.get("productos", [])), p.get("estado"))
-	except (requests.RequestException, KeyError, ValueError) as e:
-		_estado("pedidos", "error: " + type(e).__name__)
-		raise FuenteError(502, "No se pudo leer la API de Pedidos")
-	_estado("pedidos", "ok")
+	except Exception as e:
+		d = _motivo(e, PEDIDOS_URL, "Pedidos")
+		_estado("pedidos", "error", d)
+		raise FuenteError(502, d)
+	_estado("pedidos", "ok", cantidad=len(lista))
 	return len(lista)
-
-
-# ---------- Productos ----------
-_ultimo_intento_productos = 0.0
 
 
 def cargar_productos() -> int:
 	"""GET {PRODUCTOS_URL}/api/productos -> catálogo (id, nombre, categoria, precio)."""
-	if not PRODUCTOS_URL:
-		raise FuenteError(503, "sin configurar (PRODUCTOS_URL)")
-	try:
-		r = requests.get(f"{PRODUCTOS_URL}/api/productos", timeout=10)
-		r.raise_for_status()
-		lista = r.json()
-		almacen.reemplazar_productos(lista)
-	except (requests.RequestException, KeyError, ValueError, TypeError) as e:
-		_estado("productos", "error: " + type(e).__name__)
-		raise FuenteError(502, "No se pudo leer la API de Productos")
-	_estado("productos", "ok")
-	return len(lista)
+	return _cargar_rest("productos", PRODUCTOS_URL, "/api/productos", almacen.reemplazar_productos, "Productos", "PRODUCTOS_URL")
 
 
-# ---------- Inventario ----------
 def cargar_inventario() -> int:
 	"""GET {INVENTARIO_URL}/api/inventario -> existencias por producto."""
-	if not INVENTARIO_URL:
-		raise FuenteError(503, "sin configurar (INVENTARIO_URL)")
-	try:
-		r = requests.get(f"{INVENTARIO_URL}/api/inventario", timeout=10)
-		r.raise_for_status()
-		lista = r.json()
-		almacen.reemplazar_inventario(lista)
-	except (requests.RequestException, KeyError, ValueError, TypeError) as e:
-		_estado("inventario", "error: " + type(e).__name__)
-		raise FuenteError(502, "No se pudo leer la API de Inventario")
-	_estado("inventario", "ok")
-	return len(lista)
+	return _cargar_rest("inventario", INVENTARIO_URL, "/api/inventario", almacen.reemplazar_inventario, "Inventario", "INVENTARIO_URL")
 
 
 def refrescar_todo() -> dict:
-	"""Vuelve a pedir todo a las APIs. Devuelve cuántos datos trajo de cada fuente."""
+	"""Vuelve a pedir todo a las APIs. Nunca lanza error: devuelve cuántos datos trajo de cada fuente o el motivo."""
 	res = {}
 	for nombre, f in (("clientes", cargar_clientes), ("pedidos", cargar_pedidos), ("productos", cargar_productos),
 					  ("inventario", cargar_inventario)):
@@ -165,12 +193,20 @@ def refrescar_todo() -> dict:
 			res[nombre] = f()
 		except FuenteError as e:
 			res[nombre] = e.detalle
+		except Exception as e:                       # lo inesperado también se explica, no se propaga
+			log.exception("Error inesperado al refrescar %s", nombre)
+			_estado(nombre, "error", f"Error inesperado: {type(e).__name__}")
+			res[nombre] = f"Error inesperado: {type(e).__name__}"
 	return res
 
 
 # ---------- Eventos ----------
+_ultimo_intento_productos = 0.0
+
+
 def aplicar_evento(d: dict) -> None:
-	"""PedidoCreado / PagoAprobado / PagoRechazado. ValueError si el mensaje no sirve."""
+	"""PedidoCreado / PagoAprobado / PagoRechazado / evento de inventario. ValueError si el mensaje no sirve."""
+	global _ultimo_intento_productos
 	try:
 		ev, pid = d["evento"], int(d["pedidoId"])
 		if ev == "PedidoCreado":
@@ -180,9 +216,9 @@ def aplicar_evento(d: dict) -> None:
 					almacen.guardar_cliente(traer_cliente(int(d["clienteId"])))
 				except FuenteError:
 					pass
-			global _ultimo_intento_productos                      # producto desconocido: se relee el catálogo (máx. 1 vez/min)
-			if PRODUCTOS_URL and time.time() - _ultimo_intento_productos > 60 and 					any(x["productoId"] not in almacen.productos for x in d.get("productos", [])):
-				_ultimo_intento_productos = time.time()
+			desconocido = any(x["productoId"] not in almacen.productos for x in d.get("productos", []))
+			if PRODUCTOS_URL and desconocido and time.time() - _ultimo_intento_productos > 60:
+				_ultimo_intento_productos = time.time()           # producto desconocido: se relee el catálogo (máx. 1 vez/min)
 				try:
 					cargar_productos()
 				except FuenteError:
@@ -202,9 +238,18 @@ def aplicar_evento(d: dict) -> None:
 		raise ValueError("Campo faltante o inválido: " + str(e))
 
 
+# ---------- RabbitMQ en vivo ----------
 # cola propia -> (exchanges candidatos, claves de enlace). Solo se enlazan los que YA existen: no se crean.
 _ENLACES = {COLA_PAGOS: (EXCHANGES_PAGOS, CLAVES_PAGOS),
 			COLA_INVENTARIO: ([EXCHANGE_INVENTARIO], ("",))}
+
+
+def _detalle_rabbit() -> str:
+	pagos = any((COLA_PAGOS, ex) in _enlazados for ex in EXCHANGES_PAGOS)
+	inv = (COLA_INVENTARIO, EXCHANGE_INVENTARIO) in _enlazados
+	return ("Escuchando pedidos · "
+			+ ("pagos enlazados" if pagos else "pagos: esperando que el grupo de Pagos cree su exchange") + " · "
+			+ ("inventario enlazado" if inv else "inventario: esperando que ese grupo cree su exchange"))
 
 
 def _enlazar_opcionales(conn):
@@ -225,6 +270,7 @@ def _enlazar_opcionales(conn):
 				pendientes += 1   # aún no existe
 			else:
 				ch.close()
+	_estado("rabbit", "ok", _detalle_rabbit())
 	if pendientes:
 		conn.call_later(30, lambda: _enlazar_opcionales(conn))
 
@@ -244,8 +290,18 @@ def _al_recibir(ch, method, props, body):
 		ch.basic_nack(method.delivery_tag, requeue=True)
 
 
+def _parametros() -> pika.URLParameters:
+	p = pika.URLParameters(AMQP_URL)
+	p.heartbeat = 30
+	p.socket_timeout = 10
+	p.stack_timeout = 30          # conexiones lentas (TLS a CloudAMQP) no se cortan a los 15 s por defecto
+	p.connection_attempts = 3
+	p.retry_delay = 2
+	return p
+
+
 def _escuchar():
-	conn = pika.BlockingConnection(pika.URLParameters(AMQP_URL))
+	conn = pika.BlockingConnection(_parametros())
 	ch = conn.channel()
 	ch.exchange_declare(exchange=EXCHANGE_PEDIDOS, exchange_type="fanout", durable=True)
 	ch.queue_declare(queue=COLA_PEDIDOS, durable=True)
@@ -257,32 +313,42 @@ def _escuchar():
 	ch.basic_consume(queue=COLA_PEDIDOS, on_message_callback=_al_recibir)
 	ch.basic_consume(queue=COLA_PAGOS, on_message_callback=_al_recibir)
 	ch.basic_consume(queue=COLA_INVENTARIO, on_message_callback=_al_recibir)
-	_estado("rabbit", "conectado")
 	log.info("Escuchando '%s', '%s' y '%s'", COLA_PEDIDOS, COLA_PAGOS, COLA_INVENTARIO)
 	ch.start_consuming()
 
 
 def _bucle_rabbit():
+	"""Mantiene la conexión con RabbitMQ para siempre: cualquier fallo se explica en el estado y se reintenta."""
+	espera = 5
 	while True:
 		try:
 			_escuchar()
-		except pika.exceptions.AMQPError as err:
+			espera = 5
+		except Exception as err:
 			_enlazados.clear()
-			_estado("rabbit", "desconectado, reintentando")
-			log.error("Conexión con RabbitMQ perdida (%s). Reintento en 5 s", type(err).__name__)
-			time.sleep(5)
+			motivo = f"No se pudo conectar con RabbitMQ ({type(err).__name__}). Reintentando en {espera} s"
+			_estado("rabbit", "error", motivo)
+			log.error(motivo)
+			time.sleep(espera)
+			espera = min(espera * 2, 60)
 
 
 def _bucle_refresco():
 	while True:
 		time.sleep(REFRESCO_SEG)
-		refrescar_todo()
+		try:
+			refrescar_todo()
+		except Exception:
+			log.exception("Falló el refresco periódico")
 
 
 def arrancar():
-	"""Se llama una vez al iniciar la API (en un hilo aparte)."""
-	if AMQP_URL:
-		threading.Thread(target=_bucle_rabbit, daemon=True).start()
-	refrescar_todo()
-	if REFRESCO_SEG > 0:
-		threading.Thread(target=_bucle_refresco, daemon=True).start()
+	"""Se llama una vez al iniciar la API (en un hilo aparte). Nada de lo que pase aquí detiene a la API."""
+	try:
+		if AMQP_URL:
+			threading.Thread(target=_bucle_rabbit, daemon=True).start()
+		refrescar_todo()
+		if REFRESCO_SEG > 0:
+			threading.Thread(target=_bucle_refresco, daemon=True).start()
+	except Exception:
+		log.exception("Error al arrancar las conexiones")

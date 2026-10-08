@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard de Reportes</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bf0'/%3E%3Cpath d='M9 22v-6M16 22V10M23 22v-9' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 	:root {
@@ -86,6 +87,18 @@
 	.vacio { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--mut); font-size:.9rem; gap:8px; border:2px dashed var(--line); border-radius:14px; padding:14px; background:var(--card2); }
 	.vacio .i { width:2rem; height:2rem; opacity:.6; }
 	.chart.sin-datos canvas { visibility:hidden; } .chart.sin-datos .vacio { display:flex; }
+
+	/* ---- conexiones ---- */
+	.conex { margin-bottom:18px; }
+	.conex-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:10px; }
+	.cx { display:flex; gap:12px; padding:13px 15px; border-radius:14px; border:1px solid var(--line); background:var(--card2); }
+	.cx .pto { width:11px; height:11px; border-radius:50%; margin-top:5px; flex:none; background:var(--mut); }
+	.cx.ok .pto { background:var(--ok); } .cx.error .pto { background:var(--bad); } .cx.sin_configurar .pto { background:var(--warn); }
+	.cx.pendiente .pto { animation:pulso 1.4s infinite; }
+	.cx.error { border-color:var(--bad); background:var(--bad-soft); } .cx.sin_configurar { border-color:var(--warn); background:var(--warn-soft); }
+	.cx .nom { font-weight:700; font-size:.92rem; }
+	.cx .tx { font-size:.8rem; color:var(--mut); word-break:break-word; margin-top:2px; }
+	.cx .est { font-weight:700; } .cx.ok .est { color:var(--ok); } .cx.error .est { color:var(--bad); } .cx.sin_configurar .est { color:var(--warn); }
 
 	/* ---- stock ---- */
 	.chips { display:flex; flex-wrap:wrap; gap:10px; margin:2px 0 16px; }
@@ -185,7 +198,12 @@
 		</div>
 	</section>
 
-	<div class="ayuda" id="ayuda"><b>Aún no hay pedidos.</b> Esta pantalla se llena sola cuando Pedidos y Pagos envían sus eventos. Mientras tanto, todo aparece en cero.</div>
+	<div class="ayuda" id="ayuda"></div>
+
+	<section class="card conex">
+		<h2>Conexiones con los otros servicios</h2><p class="sub">Qué servicios están respondiendo y, si alguno falla, el motivo.</p>
+		<div class="conex-grid" id="conex-grid"><div class="msg">Comprobando…</div></div>
+	</section>
 
 	<section class="kpis">
 		<div class="card kpi cargando"><div class="ico brand"><svg class="i"><use href="#i-users"/></svg></div><div><div class="v" id="k-total-clientes">0</div><div class="l">Clientes registrados</div></div></div>
@@ -348,6 +366,29 @@ function dibujarTodo(d) {
 			scales:{ x:{ beginAtZero:true, border:{display:false}, ticks:{ callback:v => peso(v), maxTicksLimit:4 } }, y:{ grid:{display:false}, border:{display:false} } } } }, mc.length > 0);
 }
 
+/* ---------- conexiones con los otros servicios ---------- */
+const TXT_ESTADO = { ok:"Conectado", error:"Sin conexión", sin_configurar:"Sin configurar", pendiente:"Conectando…" };
+function pintarConexiones(st) {
+	$("conex-grid").innerHTML = Object.values(st).map(f => {
+		const extra = (f.estado === "ok" && f.cantidad != null ? " · " + f.cantidad + " dato(s)" : "") + (f.hora && f.estado !== "pendiente" ? " · " + f.hora : "");
+		return `<div class="cx ${esc(f.estado)}"><span class="pto"></span><div>
+			<div class="nom">${esc(f.etiqueta)}</div>
+			<div class="tx"><span class="est">${esc(TXT_ESTADO[f.estado] || f.estado)}</span>${esc(extra)}</div>
+			${f.detalle ? `<div class="tx">${esc(f.detalle)}</div>` : ""}
+			<div class="tx" style="opacity:.65">${esc(f.via)}</div></div></div>`;
+	}).join("");
+}
+function textoSinPedidos(st) {
+	const p = st.pedidos, r = st.rabbit;
+	const api = p.estado === "ok" ? "La API de Pedidos respondió, pero todavía no tiene pedidos."
+		: p.estado === "pendiente" ? "Consultando la API de Pedidos…"
+		: `<b>No se pudieron leer los pedidos de la API de Pedidos.</b> ${esc(p.detalle)}`;
+	const vivo = r.estado === "ok" ? "La conexión en vivo con RabbitMQ está activa: los pedidos nuevos aparecerán solos."
+		: r.estado === "pendiente" ? "Conectando con RabbitMQ…"
+		: `<b>La conexión en vivo no está activa.</b> ${esc(r.detalle)}`;
+	return "<b>Aún no hay pedidos.</b> " + api + " " + vivo;
+}
+
 /* ---------- stock ---------- */
 const COL_NIVEL = { AGOTADO:"#e03e3e", BAJO:"#f0a30a", DISPONIBLE:"#12a150" };
 const NOMBRE_NIVEL = { AGOTADO:"Agotado", BAJO:"Stock bajo", DISPONIBLE:"Disponible" };
@@ -362,10 +403,11 @@ function dibujarStock(d) {
 		? `Stock bajo: menos de ${stock.umbral} unidades.` + (r.total > MAX_STOCK ? ` Se muestran los ${MAX_STOCK} con menos stock de ${r.total}.` : "")
 		: "";
 	if (!r.total) {
-		$("vacio-stock").innerHTML = /sin configurar/.test(inv || "")
-			? "Esperando la API de Inventario<br><small>Cuando el grupo de Inventario tenga su API, pon su dirección en INVENTARIO_URL del archivo .env.</small>"
-			: /error/.test(inv || "") ? "No se pudo leer la API de Inventario<br><small>Revisa que el servicio esté encendido y que INVENTARIO_URL sea correcta.</small>"
-			: "Inventario no tiene productos registrados";
+		const e = inv || {};
+		$("vacio-stock").innerHTML = e.estado === "sin_configurar"
+			? "Esperando la API de Inventario<br><small>Pon su dirección en INVENTARIO_URL del archivo .env.</small>"
+			: e.estado === "error" ? `No se pudo leer la API de Inventario<br><small>${esc(e.detalle)}</small>`
+			: e.estado === "ok" ? "Inventario no tiene productos registrados" : "Conectando con Inventario…";
 	}
 	$("w-stock").style.height = Math.max(200, lista.length * 34 + 56) + "px";
 	dibujar("c-stock", { type:"bar",
@@ -391,7 +433,9 @@ async function cargar() {
 			get("/clientes"), get("/reportes/pedidos-recientes"), get("/api/estado"), get("/reportes/stock") ]);
 		clientes = lista; ultimo = { res, dias, pagos, prods, stock, inv: st.inventario };
 		document.querySelectorAll(".cargando").forEach(e => e.classList.remove("cargando"));
-		if (st.rabbit === "conectado") estado(true, "En vivo"); else estado(false, "Sin RabbitMQ: " + st.rabbit);
+		if (st.rabbit.estado === "ok") estado(true, "En vivo");
+		else estado(false, st.rabbit.estado === "sin_configurar" ? "Sin RabbitMQ" : st.rabbit.estado === "error" ? "Sin conexión en vivo" : "Conectando…");
+		pintarConexiones(st);
 
 		const cant = e => (pagos.find(p => p.estado_pago === e) || {}).cantidad || 0;
 		const decididos = cant("APROBADO") + cant("RECHAZADO"), tasa = decididos ? Math.round(100 * cant("APROBADO") / decididos) : 0;
@@ -404,6 +448,7 @@ async function cargar() {
 		$("hero-sub").textContent = res.total_pedidos
 			? `${res.total_pedidos} pedido(s) de ${res.clientes_con_compras} cliente(s) · ${cant("APROBADO")} pago(s) aprobado(s)`
 			: "Todavía no hay pedidos registrados";
+		$("ayuda").innerHTML = textoSinPedidos(st);
 		$("ayuda").style.display = res.total_pedidos === 0 ? "block" : "none";
 
 		dibujarTodo(ultimo);
@@ -413,7 +458,7 @@ async function cargar() {
 			<td><span class="tag ${esc(p.estado_pago)}">${esc(p.estado_pago)}</span></td></tr>`).join("")
 			: '<tr><td colspan="6" class="msg">Aún no hay pedidos.</td></tr>';
 		pintarClientes();
-		$("pie").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO") + " · Clientes: " + st.clientes + " · Pedidos: " + st.pedidos + " · Productos: " + st.productos + " · Inventario: " + st.inventario;
+		$("pie").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO");
 	} catch (e) {
 		estado(false, "Sin conexión con Reportes");
 	}

@@ -1,5 +1,7 @@
 import asyncio
 import os
+import signal
+import sys
 import threading
 from contextlib import asynccontextmanager
 
@@ -16,6 +18,30 @@ import fuentes  # noqa: E402
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 suscriptores: set[asyncio.Queue] = set()   # un navegador abierto = una cola
 loop: asyncio.AbstractEventLoop | None = None
+cerrando = False                            # True cuando le piden detenerse al servidor (Ctrl+C o recarga)
+
+
+def _vigilar_cierre():
+	"""uvicorn espera a que se cierren todas las conexiones antes de apagarse y /stream nunca termina solo:
+	sin esto, un dashboard abierto cuelga el servidor al detenerlo o recargarlo. Solo hace falta en Windows."""
+	if sys.platform != "win32":
+		return
+
+	def encadenar(previo):
+		def manejador(num, frame):
+			global cerrando
+			cerrando = True
+			if callable(previo):
+				previo(num, frame)
+		return manejador
+
+	for nombre in ("SIGINT", "SIGTERM", "SIGBREAK"):
+		sig = getattr(signal, nombre, None)
+		if sig is not None:
+			try:
+				signal.signal(sig, encadenar(signal.getsignal(sig)))
+			except (ValueError, OSError):
+				pass
 
 
 def _difundir():
@@ -39,6 +65,7 @@ almacen.al_cambiar = notificar
 async def lifespan(app: FastAPI):
 	global loop
 	loop = asyncio.get_running_loop()
+	_vigilar_cierre()
 	threading.Thread(target=fuentes.arrancar, daemon=True).start()
 	yield
 
@@ -62,12 +89,15 @@ async def stream():
 	async def generador():
 		try:
 			yield "retry: 3000\n\ndata: hola\n\n"
-			while True:
+			segundos = 0
+			while not cerrando:
 				try:
-					await asyncio.wait_for(cola.get(), timeout=15)
+					await asyncio.wait_for(cola.get(), timeout=1)
 					yield "data: cambio\n\n"
 				except asyncio.TimeoutError:
-					yield ": ping\n\n"
+					segundos += 1
+					if segundos % 15 == 0:
+						yield ": ping\n\n"
 		finally:
 			suscriptores.discard(cola)
 

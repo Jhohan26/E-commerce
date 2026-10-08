@@ -8,11 +8,13 @@ Python 3.10+, FastAPI + Uvicorn, RabbitMQ (pika), `requests`. Puerto `8001`.
 ## Ejecutar (una sola terminal)
 
     cd grupoC_Reportes
-    .venv\Scripts\python.exe -m uvicorn main:app --reload --port 8001
+    .venv\Scripts\python.exe iniciar.py
 
-Abrir **http://127.0.0.1:8001/**. Variables en `.env` (ver `.env.example`): `AMQP_URL` (broker compartido, nunca se sube a git), `PEDIDOS_URL`, `REFRESCO_SEG`.
+Abrir **http://127.0.0.1:8001/**. Variables en `.env` (ver `.env.example`): `AMQP_URL` (broker compartido, nunca se sube a git), `PEDIDOS_URL`, `PRODUCTOS_URL`, `INVENTARIO_URL`, `REFRESCO_SEG`.
 
-> Ya no existe `consumer.py`: el consumidor de RabbitMQ corre dentro de la propia API. Si queda otro consumidor viejo abierto, se repartirían los mensajes: cerrarlo.
+- `iniciar.py` arranca uvicorn con recarga automática y un límite de 2 s para cerrar las conexiones en vivo. Si prefieres el comando directo: `uvicorn main:app --reload --port 8001 --timeout-graceful-shutdown 2`.
+- Ya no existe `consumer.py`: el consumidor de RabbitMQ corre dentro de la propia API. Si queda otro consumidor viejo abierto, se repartirían los mensajes: cerrarlo.
+- **Respaldo:** los pedidos y pagos recibidos por RabbitMQ se copian en `datos/respaldo.json` (no es una base de datos; no se sube a git) para no perderlos si la API se reinicia, ya que RabbitMQ los entrega una sola vez. Se apaga con `RESPALDO=0`.
 
 ## Cómo funciona
 
