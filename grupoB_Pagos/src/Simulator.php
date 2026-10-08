@@ -16,7 +16,7 @@ final class Simulator
                 $this->rejectedOrderIds[(int) $value] = true;
             }
         }
-        $this->reason = $config->get('PAYMENT_REJECTION_REASON', 'Rechazo de prueba configurado');
+        $this->reason = $config->get('PAYMENT_REJECTION_REASON', 'Transaccion rechazada por la pasarela simulada');
         if ($this->reason === '' || mb_strlen($this->reason) > 150) { throw new \RuntimeException('Motivo debe tener entre 1 y 150 caracteres'); }
     }
     public function decide(Order $order): array
