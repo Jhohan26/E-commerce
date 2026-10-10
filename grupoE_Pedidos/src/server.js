@@ -7,6 +7,7 @@ require('dotenv').config();
 const app = require('./app');
 const { pool, checkDbConnection } = require('./config/db');
 const { config: rabbit, connectRabbitMQ, closeRabbitMQ } = require('./config/rabbitmq');
+const { iniciarConsumidorCarro, detenerConsumidorCarro } = require('./consumers/carroConsumer');
 
 const PORT = process.env.PORT || 3000;
 
@@ -22,6 +23,7 @@ const server = app.listen(PORT, async () => {
   const mq = await connectRabbitMQ();
   if (mq.connected) {
     console.log(`[RabbitMQ] OK: productor conectado (exchange: ${rabbit.exchange})`);
+    await iniciarConsumidorCarro();
   } else {
     console.warn(`[RabbitMQ] ADVERTENCIA: ${mq.message}`);
     console.warn('[RabbitMQ] Revisa RABBITMQ_URL en el archivo .env. Se reintentará cada 5 segundos.');
@@ -38,6 +40,7 @@ server.on('error', (err) => {
 async function shutdown(signal) {
   console.log(`\n${signal} recibido. Cerrando servicios...`);
   server.close();
+  await detenerConsumidorCarro();
   await closeRabbitMQ();
   await pool.end().catch(() => {});
   process.exit(0);

@@ -91,10 +91,18 @@ export function actualizarClientesCatalogo(lista) {
 }
 
 export const PRODUCTOS_CATALOGO = {
+  // Catálogo sincronizado con Carro (Grupo D)
+  1:  { id: 1,  nombre: 'Portátil 14" Ryzen 5',       precio: 2500000, icono: 'laptop' },
+  2:  { id: 2,  nombre: 'Mouse inalámbrico',          precio: 65000,   icono: 'mouse' },
+  3:  { id: 3,  nombre: 'Teclado mecánico',           precio: 220000,  icono: 'keyboard' },
+  4:  { id: 4,  nombre: 'Monitor 24" Full HD',        precio: 680000,  icono: 'monitor' },
+  5:  { id: 5,  nombre: 'Audífonos Bluetooth',        precio: 150000,  icono: 'headphones' },
+  6:  { id: 6,  nombre: 'Disco SSD 1 TB',             precio: 310000,  icono: 'box' },
+
+  // Referencias adicionales
   15: { id: 15, nombre: 'Portátil Gamer 15" Core i7', precio: 2500000, icono: 'laptop' },
   10: { id: 10, nombre: 'Mouse inalámbrico Logitech', precio: 1200000, icono: 'mouse' },
   12: { id: 12, nombre: 'Teclado mecánico RGB',       precio: 1200000, icono: 'keyboard' },
-  5:  { id: 5,  nombre: 'Monitor curvo 27" Full HD',  precio: 850000,  icono: 'monitor' },
   8:  { id: 8,  nombre: 'Auriculares Bluetooth Pro',  precio: 350000,  icono: 'headphones' }
 };
 
