@@ -5,7 +5,7 @@ import {
   formatDateParts, formatDateTime, debounce, statusChipHtml,
   getClienteInfo, getClienteNombre, getProductoInfo, getProductoNombre,
   getProductoIcono, iniciales, CLIENTES_CATALOGO, PRODUCTOS_CATALOGO,
-  actualizarClientesCatalogo
+  actualizarClientesCatalogo, actualizarProductosCatalogo
 } from './utils.js';
 
 const PAGE_SIZE = 10;
@@ -238,13 +238,14 @@ function emptyRow(title, text, actionLabel, action) {
 function orderRow(o) {
   const date = formatDateParts(o.fecha);
   const items = Number(o.totalItems) || 0;
-  const clienteNombre = getClienteNombre(o.clienteId);
+  const clienteInfo = getClienteInfo(o.clienteId);
+  const clienteNombre = clienteInfo ? clienteInfo.nombre : (Number(o.clienteId) === 25 ? 'Carlos Gómez' : `Cliente #${o.clienteId}`);
   return `
     <tr data-id="${o.id}" class="is-clickable">
       <td><button type="button" class="id-link" data-action="detail" data-id="${o.id}">#${o.id}</button></td>
       <td>
-        <span class="cell-main">${escapeHtml(clienteNombre)}</span>
-        <span class="sub-name">Cliente #${escapeHtml(o.clienteId)}</span>
+        <span class="cell-main"><strong>${escapeHtml(clienteNombre)}</strong></span>
+        <span class="sub-name">ID: #${escapeHtml(o.clienteId)}</span>
       </td>
       <td><span class="date">${escapeHtml(date.date)}</span><span class="time">${escapeHtml(date.time)}</span></td>
       <td class="num" title="${items} ${items === 1 ? 'producto' : 'productos'}">${formatNumber(o.totalUnidades)}</td>
@@ -531,6 +532,7 @@ async function cargarClientes() {
     if (data && Array.isArray(data.clientes)) {
       actualizarClientesCatalogo(data.clientes);
       populateDatalists();
+      render();
       if (data.clientes.length === 0) {
         el.clienteHelp.textContent = 'Servicio de Clientes conectado (Grupo F), pero aún no tiene clientes creados en su base de datos.';
       } else {
@@ -539,6 +541,19 @@ async function cargarClientes() {
     }
   } catch (err) {
     console.warn('[Clientes] No se pudieron sincronizar los clientes vía RPC:', err.message);
+  }
+}
+
+async function cargarProductos() {
+  try {
+    const data = await api.productos();
+    if (data && Array.isArray(data.productos)) {
+      actualizarProductosCatalogo(data.productos);
+      populateDatalists();
+      render();
+    }
+  } catch (err) {
+    console.warn('[Productos] No se pudieron sincronizar los productos vía RPC:', err.message);
   }
 }
 
@@ -752,8 +767,8 @@ function renderDetail(p) {
     return `
       <tr>
         <td>
-          <span class="mono">#${escapeHtml(i.productoId)}</span>
-          <span class="sub-name">${escapeHtml(prodNom)}</span>
+          <span class="cell-main" style="display:block;font-weight:600;color:inherit;">${escapeHtml(prodNom)}</span>
+          <span class="sub-name mono" style="font-size:0.8rem;color:var(--c-muted,#64748b);">ID: #${escapeHtml(i.productoId)}</span>
         </td>
         <td class="num">${formatNumber(i.cantidad)}</td>
         <td class="num">${formatMoney(i.precio)}</td>
@@ -762,12 +777,13 @@ function renderDetail(p) {
   }).join('');
 
   const json = JSON.stringify(eventPayload(p), null, 2);
-  const clienteNom = getClienteNombre(p.clienteId);
+  const clienteInfo = getClienteInfo(p.clienteId);
+  const clienteNom = clienteInfo ? clienteInfo.nombre : (Number(p.clienteId) === 25 ? 'Carlos Gómez' : `Cliente #${p.clienteId}`);
 
   el.detailBody.innerHTML = `
     <dl class="facts">
       <div><dt>Estado</dt><dd>${statusChipHtml(p.estado)}</dd></div>
-      <div><dt>Cliente</dt><dd>#${escapeHtml(p.clienteId)} &bull; ${escapeHtml(clienteNom)}</dd></div>
+      <div><dt>Cliente</dt><dd><strong>${escapeHtml(clienteNom)}</strong> <span style="color:var(--c-muted,#64748b);font-size:0.85rem;">(ID: #${escapeHtml(p.clienteId)})</span></dd></div>
       <div><dt>Fecha</dt><dd>${escapeHtml(formatDateTime(p.fecha))}</dd></div>
       <div><dt>Total</dt><dd class="strong">${formatMoney(p.total)}</dd></div>
     </dl>
@@ -946,7 +962,7 @@ el.cliente.addEventListener('change', () => {
 });
 
 el.refresh.addEventListener('click', async () => {
-  await Promise.all([loadOrders({ silent: true }), checkHealth()]);
+  await Promise.all([loadOrders({ silent: true }), checkHealth(), cargarClientes(), cargarProductos()]);
   if (!state.loadError) toast('Datos actualizados.', 'info');
 });
 
@@ -1010,6 +1026,7 @@ try { el.toasts.showPopover(); } catch {}
 
 populateDatalists();
 cargarClientes();
+cargarProductos();
 addLine();
 renderSkeleton();
 checkHealth();

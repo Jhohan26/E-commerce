@@ -35,6 +35,9 @@ export const api = {
   clientes: () => request('/api/clientes'),
   cliente: (id) => request(`/api/clientes/${id}`),
 
+  // Consulta de Productos (Grupo G / Carro vía RabbitMQ RPC)
+  productos: () => request('/api/productos'),
+
   // /api/health responde 200 o 207 con JSON; si falla la red, lanza el error.
   async salud() {
     const res = await fetch('/api/health');

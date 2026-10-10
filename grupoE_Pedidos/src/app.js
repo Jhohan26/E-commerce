@@ -7,6 +7,7 @@ const path = require('path');
 
 const pedidosRoutes = require('./routes/pedidosRoutes');
 const clientesRoutes = require('./routes/clientesRoutes');
+const productosRoutes = require('./routes/productosRoutes');
 const healthRoutes = require('./routes/healthRoutes');
 const { notFoundApi, errorHandler } = require('./middlewares/errorHandler');
 
@@ -29,6 +30,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use('/api/health', healthRoutes);
 app.use('/api/pedidos', pedidosRoutes);
 app.use('/api/clientes', clientesRoutes);
+app.use('/api/productos', productosRoutes);
 app.use('/api', notFoundApi);
 
 app.use(errorHandler);

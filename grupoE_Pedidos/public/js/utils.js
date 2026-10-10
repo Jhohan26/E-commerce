@@ -90,21 +90,36 @@ export function actualizarClientesCatalogo(lista) {
   }
 }
 
-export const PRODUCTOS_CATALOGO = {
-  // Catálogo sincronizado con Carro (Grupo D)
-  1:  { id: 1,  nombre: 'Portátil 14" Ryzen 5',       precio: 2500000, icono: 'laptop' },
-  2:  { id: 2,  nombre: 'Mouse inalámbrico',          precio: 65000,   icono: 'mouse' },
-  3:  { id: 3,  nombre: 'Teclado mecánico',           precio: 220000,  icono: 'keyboard' },
-  4:  { id: 4,  nombre: 'Monitor 24" Full HD',        precio: 680000,  icono: 'monitor' },
-  5:  { id: 5,  nombre: 'Audífonos Bluetooth',        precio: 150000,  icono: 'headphones' },
-  6:  { id: 6,  nombre: 'Disco SSD 1 TB',             precio: 310000,  icono: 'box' },
+export let PRODUCTOS_CATALOGO = {
+  // Catálogo sincronizado con Carro (Grupo D) y Productos (Grupo G)
+  1:  { id: 1,  nombre: 'Portátil 14" Ryzen 5',       precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' },
+  2:  { id: 2,  nombre: 'Mouse inalámbrico',          precio: 65000,   icono: 'mouse',      categoria: 'Accesorios' },
+  3:  { id: 3,  nombre: 'Teclado mecánico',           precio: 220000,  icono: 'keyboard',   categoria: 'Accesorios' },
+  4:  { id: 4,  nombre: 'Monitor 24" Full HD',        precio: 680000,  icono: 'monitor',    categoria: 'Electrónica' },
+  5:  { id: 5,  nombre: 'Audífonos Bluetooth',        precio: 150000,  icono: 'headphones', categoria: 'Accesorios' },
+  6:  { id: 6,  nombre: 'Disco SSD 1 TB',             precio: 310000,  icono: 'box',        categoria: 'Almacenamiento' },
+  7:  { id: 7,  nombre: 'Zapatera 6 niveles',         precio: 100000,  icono: 'box',        categoria: 'Hogar' },
+  8:  { id: 8,  nombre: 'Mouse Bluetooth Pro',        precio: 65000,   icono: 'mouse',      categoria: 'Accesorios' },
 
   // Referencias adicionales
-  15: { id: 15, nombre: 'Portátil Gamer 15" Core i7', precio: 2500000, icono: 'laptop' },
-  10: { id: 10, nombre: 'Mouse inalámbrico Logitech', precio: 1200000, icono: 'mouse' },
-  12: { id: 12, nombre: 'Teclado mecánico RGB',       precio: 1200000, icono: 'keyboard' },
-  8:  { id: 8,  nombre: 'Auriculares Bluetooth Pro',  precio: 350000,  icono: 'headphones' }
+  10: { id: 10, nombre: 'Mouse inalámbrico Logitech', precio: 1200000, icono: 'mouse',      categoria: 'Accesorios' },
+  12: { id: 12, nombre: 'Teclado mecánico RGB',       precio: 1200000, icono: 'keyboard',   categoria: 'Accesorios' },
+  15: { id: 15, nombre: 'Portátil Gamer 15" Core i7', precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' }
 };
+
+export function actualizarProductosCatalogo(lista) {
+  if (Array.isArray(lista) && lista.length > 0) {
+    lista.forEach((p) => {
+      PRODUCTOS_CATALOGO[Number(p.id)] = {
+        id: Number(p.id),
+        nombre: p.nombre,
+        precio: Number(p.precio) || 0,
+        categoria: p.categoria || 'General',
+        icono: p.icono || 'box'
+      };
+    });
+  }
+}
 
 export function getClienteInfo(id) {
   return CLIENTES_CATALOGO[Number(id)] || null;
