@@ -91,17 +91,15 @@ export function actualizarClientesCatalogo(lista) {
 }
 
 export let PRODUCTOS_CATALOGO = {
-  // Catálogo sincronizado con Carro (Grupo D) y Productos (Grupo G)
-  1:  { id: 1,  nombre: 'Portátil 14" Ryzen 5',       precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' },
-  2:  { id: 2,  nombre: 'Mouse inalámbrico',          precio: 65000,   icono: 'mouse',      categoria: 'Accesorios' },
-  3:  { id: 3,  nombre: 'Teclado mecánico',           precio: 220000,  icono: 'keyboard',   categoria: 'Accesorios' },
+  // Catálogo sincronizado con Productos (Grupo G) y Carro (Grupo D)
+  1:  { id: 1,  nombre: 'Laptop Lenovo',              precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' },
+  2:  { id: 2,  nombre: 'Audífonos Bluetooth',        precio: 150000,  icono: 'headphones', categoria: 'Accesorios' },
+  3:  { id: 3,  nombre: 'Camiseta básica',            precio: 35000,   icono: 'box',        categoria: 'Ropa' },
   4:  { id: 4,  nombre: 'Monitor 24" Full HD',        precio: 680000,  icono: 'monitor',    categoria: 'Electrónica' },
-  5:  { id: 5,  nombre: 'Audífonos Bluetooth',        precio: 150000,  icono: 'headphones', categoria: 'Accesorios' },
-  6:  { id: 6,  nombre: 'Disco SSD 1 TB',             precio: 310000,  icono: 'box',        categoria: 'Almacenamiento' },
+  5:  { id: 5,  nombre: 'Jean azul',                  precio: 80000,   icono: 'box',        categoria: 'Ropa' },
+  6:  { id: 6,  nombre: 'Jabón',                      precio: 2000,    icono: 'box',        categoria: 'Hogar' },
   7:  { id: 7,  nombre: 'Zapatera 6 niveles',         precio: 100000,  icono: 'box',        categoria: 'Hogar' },
-  8:  { id: 8,  nombre: 'Mouse Bluetooth Pro',        precio: 65000,   icono: 'mouse',      categoria: 'Accesorios' },
-
-  // Referencias adicionales
+  8:  { id: 8,  nombre: 'Mouse Bluetooth',            precio: 65000,   icono: 'mouse',      categoria: 'Accesorios' },
   10: { id: 10, nombre: 'Mouse inalámbrico Logitech', precio: 1200000, icono: 'mouse',      categoria: 'Accesorios' },
   12: { id: 12, nombre: 'Teclado mecánico RGB',       precio: 1200000, icono: 'keyboard',   categoria: 'Accesorios' },
   15: { id: 15, nombre: 'Portátil Gamer 15" Core i7', precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' }

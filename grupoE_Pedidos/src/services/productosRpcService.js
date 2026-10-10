@@ -8,19 +8,19 @@ const QUEUE_PRODUCTOS_LISTAR = 'productos.listar';
 const QUEUE_PRODUCTO_CONSULTAR = 'producto.consultar';
 const RPC_TIMEOUT_MS = 3000;
 
-// Catálogo base de respaldo sincronizado con Carro (Grupo D)
+// Catálogo base de respaldo sincronizado con Grupo G (Productos)
 const PRODUCTOS_BASE = [
-  { id: 1,  nombre: 'Portátil 14" Ryzen 5',       precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' },
-  { id: 2,  nombre: 'Mouse inalámbrico',          precio: 65000,   icono: 'mouse',      categoria: 'Accesorios' },
-  { id: 3,  nombre: 'Teclado mecánico',           precio: 220000,  icono: 'keyboard',   categoria: 'Accesorios' },
+  { id: 1,  nombre: 'Laptop Lenovo',              precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' },
+  { id: 2,  nombre: 'Audífonos Bluetooth',        precio: 150000,  icono: 'headphones', categoria: 'Accesorios' },
+  { id: 3,  nombre: 'Camiseta básica',            precio: 35000,   icono: 'box',        categoria: 'Ropa' },
   { id: 4,  nombre: 'Monitor 24" Full HD',        precio: 680000,  icono: 'monitor',    categoria: 'Electrónica' },
-  { id: 5,  nombre: 'Audífonos Bluetooth',        precio: 150000,  icono: 'headphones', categoria: 'Accesorios' },
-  { id: 6,  nombre: 'Disco SSD 1 TB',             precio: 310000,  icono: 'box',        categoria: 'Almacenamiento' },
+  { id: 5,  nombre: 'Jean azul',                  precio: 80000,   icono: 'box',        categoria: 'Ropa' },
+  { id: 6,  nombre: 'Jabón',                      precio: 2000,    icono: 'box',        categoria: 'Hogar' },
   { id: 7,  nombre: 'Zapatera 6 niveles',         precio: 100000,  icono: 'box',        categoria: 'Hogar' },
-  { id: 15, nombre: 'Portátil Gamer 15" Core i7', precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' },
-  { id: 10, nombre: 'Mouse Logitech Pro',         precio: 1200000, icono: 'mouse',      categoria: 'Accesorios' },
+  { id: 8,  nombre: 'Mouse Bluetooth',            precio: 65000,   icono: 'mouse',      categoria: 'Accesorios' },
+  { id: 10, nombre: 'Mouse inalámbrico Logitech', precio: 1200000, icono: 'mouse',      categoria: 'Accesorios' },
   { id: 12, nombre: 'Teclado mecánico RGB',       precio: 1200000, icono: 'keyboard',   categoria: 'Accesorios' },
-  { id: 8,  nombre: 'Auriculares Bluetooth Pro',  precio: 350000,  icono: 'headphones', categoria: 'Accesorios' }
+  { id: 15, nombre: 'Portátil Gamer 15" Core i7', precio: 2500000, icono: 'laptop',     categoria: 'Electrónica' }
 ];
 
 let rpcConnection = null;
