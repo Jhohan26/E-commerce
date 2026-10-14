@@ -760,7 +760,7 @@ function eventPayload(p) {
 
 function renderDetail(p) {
   el.detailTitle.textContent = `Pedido #${p.id}`;
-  el.detailSub.textContent = 'Resumen del pedido y evento publicado';
+  el.detailSub.textContent = 'Resumen del pedido';
 
   const rows = p.productos.map((i) => {
     const prodNom = getProductoNombre(i.productoId);
@@ -776,7 +776,6 @@ function renderDetail(p) {
       </tr>`;
   }).join('');
 
-  const json = JSON.stringify(eventPayload(p), null, 2);
   const clienteInfo = getClienteInfo(p.clienteId);
   const clienteNom = clienteInfo ? clienteInfo.nombre : (Number(p.clienteId) === 25 ? 'Carlos Gómez' : `Cliente #${p.clienteId}`);
 
@@ -801,26 +800,7 @@ function renderDetail(p) {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-    </section>
-
-    <section class="section">
-      <div class="section-head">
-        <h3>Evento <code>PedidoCreado</code></h3>
-        <button type="button" class="btn btn-quiet btn-sm" id="btn-copy">Copiar JSON</button>
-      </div>
-      <pre class="code" tabindex="0" aria-label="Evento en formato JSON"></pre>
-      <p class="field-help">Este es el mensaje que consumen Inventario, Pagos, Notificaciones y Reportes.</p>
     </section>`;
-
-  el.detailBody.querySelector('pre').textContent = json;
-  el.detailBody.querySelector('#btn-copy').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(json);
-      toast('JSON copiado al portapapeles.', 'success');
-    } catch {
-      toast('No se pudo copiar. Selecciona el texto y cópialo manualmente.', 'warning');
-    }
-  });
 
   el.detailStatus.disabled = false;
   el.detailResend.disabled = false;
@@ -1032,3 +1012,10 @@ renderSkeleton();
 checkHealth();
 loadOrders();
 setInterval(checkHealth, HEALTH_INTERVAL_MS);
+
+// Auto-refresco silencioso cada 4 segundos para actualizar estados en vivo (Pagos / Inventario)
+setInterval(() => {
+  if (!state.loadError && (!el.drawerNew.open || el.drawerNew.hidden)) {
+    loadOrders({ silent: true });
+  }
+}, 4000);
