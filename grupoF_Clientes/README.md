@@ -380,3 +380,150 @@ Cualquier librería AMQP 0-9-1 sirve (Java, C#, Go, PHP, Ruby, etc.). Los pasos 
 | Respuesta con `"status": 400`                     | El cuerpo no es un JSON válido con un `id` numérico                                                |
 | Respuesta con `"status": 500`                     | Error en el worker (revisa sus logs, por ejemplo problemas de conexión a la base de datos)         |
 | Se corta la conexión tras un rato                 | Configura un `heartbeat` (por ejemplo 30 s) y reconecta si se pierde la conexión                   |
+
+
+---
+ 
+## 1. Arquitectura
+ 
+```
+Cliente ──(petición + reply_to + correlation_id)──▶ Cola del servicio ──▶ Worker ──▶ MySQL
+   ▲                                                                         │
+   └────────────(respuesta JSON)── Cola temporal del cliente ◀───────────────┘
+```
+ 
+### Colas disponibles
+ 
+| Cola                | Requiere token | Descripción                        |
+|---------------------|:--------------:|------------------------------------|
+| `auth.login`        | No             | Valida credenciales y devuelve JWT |
+| `cliente.consultar` | Sí             | Devuelve un cliente por `id`       |
+| `clientes.listar`   | Sí             | Devuelve todos los clientes        |
+ 
+---
+ 
+## 2. Flujo de autenticación
+ 
+1. Enviar usuario y contraseña a `auth.login`.
+2. Recibir un token JWT (válido por `JWT_EXPIRA_MINUTOS`, 30 por defecto).
+3. Enviar ese token en cada petición a las demás colas.
+4. Si el token expira (respuesta `401`), repetir el login.
+### 2.1 Login
+ 
+**Cola:** `auth.login`
+ 
+**Petición (cuerpo):**
+ 
+```json
+{"usuario": "demo", "password": "demo123"}
+```
+ 
+**Respuesta exitosa:**
+ 
+```json
+{
+  "status": 200,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "tipo": "Bearer",
+    "expira_en_segundos": 1800
+  }
+}
+```
+ 
+### 2.2 Enviar el token
+ 
+Hay dos formas. El worker busca primero en el header.
+ 
+**Opción A (recomendada): header AMQP**
+ 
+```
+Authorization: Bearer <token>
+```
+ 
+**Opción B: campo `token` en el cuerpo JSON**
+ 
+```json
+{"id": 1, "token": "eyJhbGciOiJIUzI1NiIs..."}
+```
+ 
+---
+ 
+## 3. Peticiones
+ 
+### 3.1 Consultar un cliente
+ 
+**Cola:** `cliente.consultar`
+**Cuerpo:** `{"id": 1}`
+ 
+```json
+{"status": 200, "data": { "...campos de CAMPOS_PUBLICOS..." }}
+```
+ 
+### 3.2 Listar clientes
+ 
+**Cola:** `clientes.listar`
+**Cuerpo:** vacío
+ 
+```json
+{"status": 200, "data": [ { "...": "..." }, { "...": "..." } ]}
+```
+ 
+---
+ 
+## 4. Códigos de respuesta
+ 
+Todas las respuestas tienen el formato `{"status": <código>, "data": ...}` o `{"status": <código>, "error": "..."}`.
+ 
+| Status | Significado                                                                      |
+|--------|----------------------------------------------------------------------------------|
+| 200    | OK                                                                               |
+| 400    | Cuerpo mal formado (JSON inválido o faltan campos)                               |
+| 401    | Credenciales inválidas, token ausente, inválido o expirado                       |
+| 404    | Cliente no encontrado                                                            |
+| 500    | Error interno del worker                                                         |
+ 
+---
+ 
+## 5. Usar el cliente de prueba (`cliente_rpc.py`)
+ 
+```bash
+# Listar todos los clientes
+python cliente_rpc.py -u demo -p demo123
+ 
+# Consultar el cliente con id 1
+python cliente_rpc.py 1 -u demo -p demo123
+```
+ 
+Si defines `API_USUARIO` y `API_PASSWORD` en el `.env`, se puede omitir `-u` y `-p`.
+ 
+### Uso desde código
+ 
+```python
+from cliente_rpc import ClienteRPC
+ 
+rpc = ClienteRPC("demo", "demo123")
+try:
+    token = rpc.login()                           # opcional: se hace solo en la primera llamada
+    print(rpc.llamar("clientes.listar"))
+    print(rpc.llamar("cliente.consultar", {"id": 1}))
+finally:
+    rpc.cerrar()
+```
+ 
+El cliente guarda el token y, si el worker responde `401`, vuelve a hacer login y reintenta una vez.
+ 
+---
+ 
+## 6. Conectarse desde otro cliente (cualquier lenguaje)
+ 
+Cualquier cliente AMQP 0-9-1 sirve. Los pasos son:
+ 
+1. Conectarse a `CLOUDAMQP_URL`.
+2. Declarar una cola temporal exclusiva y consumir de ella (será el `reply_to`).
+3. Publicar en la cola del servicio con estas propiedades:
+   - `reply_to`: nombre de la cola temporal.
+   - `correlation_id`: un identificador único (por ejemplo, un UUID).
+   - `headers`: `{"Authorization": "Bearer <token>"}` (salvo en `auth.login`).
+4. Leer la respuesta de la cola temporal y comprobar que su `correlation_id` coincide con el enviado.
+---
