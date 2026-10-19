@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 
 from .consumer import Consumer
 from .db import get_db
-from .inventario import ajustar_cantidad
+from .inventario import ajustar_cantidad, sincronizar_catalogo
+from .productos_rpc import ClienteProductos
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -24,8 +25,10 @@ COLUMNAS = "producto_id, nombre, cantidad, actualizado"
 async def lifespan(app: FastAPI):
     app.state.consumer = Consumer()
     app.state.consumer.start()
+    app.state.productos = ClienteProductos()
     yield
     app.state.consumer.detener()
+    app.state.productos.cerrar()
 
 
 app = FastAPI(title="Inventario", lifespan=lifespan)
@@ -48,6 +51,45 @@ def listar(db=Depends(get_db)):
     with db.cursor() as cur:
         cur.execute(f"SELECT {COLUMNAS} FROM Inventario ORDER BY producto_id")
         return cur.fetchall()
+
+
+@app.get("/api/productos")
+def productos(db=Depends(get_db)):
+    """Catálogo del módulo de Productos (RPC) combinado con las existencias locales.
+
+    Si Productos no responde, se devuelve solo el inventario local y
+    `productos_disponible` = false para que la interfaz lo avise.
+    """
+    catalogo, disponible = [], True
+    try:
+        catalogo = app.state.productos.listar()
+        sincronizar_catalogo(db, catalogo)  # los productos nuevos aparecen solos (0 unidades)
+    except Exception as e:
+        disponible = False
+        logging.getLogger("inventario.productos").warning("Productos no disponible: %s", e)
+
+    with db.cursor() as cur:
+        cur.execute(f"SELECT {COLUMNAS} FROM Inventario ORDER BY producto_id")
+        stock = {f["producto_id"]: f for f in cur.fetchall()}
+
+    items, vistos = [], set()
+    for p in catalogo:
+        pid = p["producto_id"]
+        fila = stock.get(pid, {})
+        vistos.add(pid)
+        items.append({
+            "producto_id": pid,
+            "nombre": p["nombre"] or fila.get("nombre"),
+            "precio": p["precio"],
+            "cantidad": fila.get("cantidad", 0),
+            "actualizado": fila.get("actualizado"),
+            "en_catalogo": True,
+        })
+    for pid, fila in stock.items():  # en inventario pero ausentes del catálogo (o Productos caído)
+        if pid not in vistos:
+            items.append({**fila, "precio": None, "en_catalogo": False})
+    items.sort(key=lambda i: i["producto_id"])
+    return {"productos_disponible": disponible, "items": items}
 
 
 @app.get("/api/inventario/{producto_id}")

@@ -95,8 +95,15 @@
 
   function aviso(texto, ok) { $("msg").textContent = texto; $("msg").className = ok ? "ok" : "err"; }
 
+  function conPrecio() { return datos.some(p => p.precio !== null && p.precio !== undefined); }
+  function dinero(v) {
+    const n = Number(v);
+    return Number.isNaN(n) ? String(v) : n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+  }
+
   function encabezado() {
     const cols = [["ID", ""], ["Producto", ""], ["Cantidad", "num"], ["Estado", ""], ["Actualizado", ""]];
+    if (conPrecio()) cols.splice(2, 0, ["Precio", "num"]);
     if (editable) cols.push(["Nueva cantidad", ""], ["Motivo", ""], ["", ""]);
     const tr = $("encabezado");
     tr.replaceChildren();
@@ -110,6 +117,7 @@
 
   function pintar() {
     const q = $("buscar").value.trim().toLowerCase();
+    encabezado();   // las columnas dependen de los datos (p. ej. Precio)
     const lista = datos.filter(p =>
       String(p.producto_id).includes(q) || (p.nombre || "").toLowerCase().includes(q));
 
@@ -119,6 +127,7 @@
       const tr = document.createElement("tr");
       celda(tr, p.producto_id);
       celda(tr, p.nombre || "Producto #" + p.producto_id);
+      if (conPrecio()) celda(tr, p.precio == null ? "–" : dinero(p.precio), "num");
       celda(tr, p.cantidad.toLocaleString("es-CO"), "num");
       const td = document.createElement("td");
       const b = document.createElement("span");
@@ -184,11 +193,15 @@
 
   async function cargar(forzar) {
     try {
-      const r = await fetch("/api/inventario");
+      const r = await fetch("/api/productos");
       if (!r.ok) throw new Error(r.status);
-      datos = await r.json();
-      $("punto").className = "punto";
-      $("estado").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO");
+      const resp = await r.json();
+      datos = resp.items;
+      const hora = new Date().toLocaleTimeString("es-CO");
+      $("punto").className = resp.productos_disponible ? "punto" : "punto off";
+      $("estado").textContent = resp.productos_disponible
+        ? "Actualizado " + hora
+        : "Módulo de Productos sin respuesta: mostrando solo el inventario local (" + hora + ")";
       // No repintar mientras se escribe en un campo, para no perder lo que se está tecleando
       const a = document.activeElement;
       const escribiendo = editable && !forzar && a && a.tagName === "INPUT" && a.closest("#filas");
@@ -203,7 +216,6 @@
     try { stockBajo = (await (await fetch("/api/config")).json()).stock_bajo; } catch (e) {}
     try { editable = (await (await fetch("/api/admin/estado")).json()).editable === true; } catch (e) {}
     $("modo").hidden = !editable;
-    encabezado();
     $("buscar").addEventListener("input", pintar);
     await cargar(true);
     setInterval(cargar, 5000);   // refresco automático cada 5 s

@@ -149,3 +149,18 @@ def ajustar_cantidad(conn, producto_id: int, cantidad: int, motivo: str | None =
         resultado = cur.fetchone()
     conn.commit()
     return resultado
+
+
+def sincronizar_catalogo(conn, catalogo: list[dict]) -> None:
+    """Da de alta (con 0 unidades) los productos nuevos del módulo de Productos y
+    mantiene actualizado el nombre. Nunca toca las cantidades existentes."""
+    filas = [(p["producto_id"], (p.get("nombre") or None)) for p in catalogo]
+    if not filas:
+        return
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO Inventario (producto_id, nombre, cantidad) VALUES (%s, %s, 0) "
+            "ON DUPLICATE KEY UPDATE nombre = COALESCE(VALUES(nombre), nombre)",
+            filas,
+        )
+    conn.commit()
