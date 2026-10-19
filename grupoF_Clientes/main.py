@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DB_CONFIG = dict(
-	unix_socket="/run/mysqld/mysqld.sock",
+	# unix_socket="/run/mysqld/mysqld.sock",
 	host=os.getenv("DB_HOST", "localhost"),
 	port=int(os.getenv("DB_PORT", "3306")),
 	user=os.getenv("DB_USER", "root"),
