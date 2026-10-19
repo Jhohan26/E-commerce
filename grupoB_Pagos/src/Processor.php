@@ -5,14 +5,15 @@ namespace Pagos;
 final class Processor
 {
     private PendingRecovery $recovery;
-    public function __construct(private PaymentRepository $repository, private Simulator $simulator, private Broker $broker, private string $inputEvent = 'PedidoCreado')
+    public function __construct(private PaymentRepository $repository, private Broker $broker, private string $inputEvent = 'PedidoCreado')
     {
         $this->recovery = new PendingRecovery();
     }
     public function process(string $body): array
     {
         $order = Order::fromJson($body, $this->inputEvent);
-        $row = $this->repository->register($order, $this->simulator->decide($order));
+        $row = $this->repository->register($order);
+        if ($row['estado'] === 'PENDIENTE') { return $row; }
         try {
             $this->repository->publishPending((int) $row['id'], [$this->broker, 'publishPayment']);
             $row['evento_publicado'] = 1;

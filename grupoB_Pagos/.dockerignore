@@ -1,0 +1,12 @@
+**
+!Dockerfile
+!composer.json
+!composer.lock
+!bootstrap.php
+!src/
+!src/**
+!bin/
+!bin/**
+!public/
+!public/**
+public/secure-test.php

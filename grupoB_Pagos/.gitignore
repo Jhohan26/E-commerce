@@ -33,3 +33,9 @@ secrets.*
 *.pfx
 .DS_Store
 Thumbs.db
+
+/tests/*cookie*.txt
+/tests/*token*.txt
+/k8s/secret.local.yaml
+
+k8s/secret.yaml

@@ -113,8 +113,39 @@ th.amount-cell { font-weight: 500; }
 .empty > span { display: block; margin-top: 8px; font-size: 12px; color: #939ca8; }
 .alert { padding: 14px; border: 1px solid #f2e0e2; border-radius: 8px; color: #9d5b62; background: #fcf3f4; font-size: 12px; margin-top: 16px; }
 .history-error { margin: 0 28px 24px; }
+.manual-decision { margin-top: 22px; }
+.decision-form { display: grid; gap: 12px; margin-top: 16px; }
+.decision-buttons { display: flex; flex-wrap: wrap; gap: 12px; }
+.decision-buttons .button { flex: 1; }
+.button.danger { background: #a33142; color: #fff; }
+.button.danger:hover { background: #842735; }
+.publication-notice { color: #725316; background: #fff8e7; padding: 14px; border-radius: 8px; font-size: 13px; line-height: 1.6; }
 .visually-hidden, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 .skip-link:focus { position: absolute; z-index: 2; top: 8px; left: 8px; background: #fff; padding: 8px 12px; border-radius: 6px; }
 @media (max-width: 900px) { .history-toolbar { align-items: start; flex-direction: column; } .history-filter { width: 100%; } .history-filter input { flex: 1; } }
 @media (max-width: 650px) { .app-header { padding: 24px; } nav a { padding: 7px 13px; } main { padding: 28px 20px 48px; } .page-heading { margin-bottom: 26px; } h1 { font-size: 36px; } .payment-grid { grid-template-columns: 1fr; gap: 20px; } .payment-sidebar { display: contents; } .lookup-card { order: 0; } .result-column { order: 1; } .integration { order: 2; } .lookup-card { padding: 24px; } .lookup-form { margin-top: 22px; } .payment-result { padding: 0 25px 24px; } .result-summary { padding-top: 29px; } .waiting-summary { padding: 40px 0; } .history-toolbar { padding: 23px; } .history-filter { flex-wrap: wrap; } .history-filter input { flex-basis: 100%; width: 100%; } .history-filter .button { flex: 1; } .payment-amount { font-size: 38px; } .integration summary { padding: 19px 24px; } .date-value { font-size: 11px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+main.with-pending-panel { max-width: 1480px; }
+.with-pending-panel .payment-grid { max-width: none; grid-template-columns: minmax(230px, .8fr) minmax(360px, 1.25fr) minmax(250px, .8fr); gap: 22px; }
+.pending-panel { padding: 25px; }
+.pending-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pending-description { color: var(--muted); font-size: 12px; margin: 10px 0 20px; }
+#pending-list { max-height: 590px; overflow-y: auto; }
+.pending-order { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; padding: 16px 10px; border-top: 1px solid var(--line); border-radius: 6px; color: var(--ink); }
+.pending-order strong { font-size: 13px; font-weight: 600; }
+.pending-order > span { font-size: 12px; font-variant-numeric: tabular-nums; }
+.pending-order small { grid-column: 1 / -1; color: var(--muted); }
+.pending-order:hover, .pending-order[aria-current] { background: #edf3fa; color: var(--blue); }
+.pending-status, .pending-empty { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.pending-status { margin-top: 16px; font-size: 11px; }
+[data-client-name] { max-width: 65%; }
+@media (max-width: 1100px) { .with-pending-panel .payment-grid { grid-template-columns: minmax(220px, .8fr) minmax(320px, 1.2fr); } .pending-panel { grid-column: 1; grid-row: 2; } .with-pending-panel .result-column { grid-column: 2; grid-row: 1 / span 2; } }
+@media (max-width: 650px) { .with-pending-panel .payment-grid { grid-template-columns: minmax(0, 1fr); } .with-pending-panel .result-column, .pending-panel { grid-column: auto; grid-row: auto; } .pending-panel { order: 2; } }
+
+.auth-card { max-width: 760px; margin: 0 auto; }
+.auth-card p { margin: 12px 0; }
+.auth-card form { display: grid; gap: 12px; margin-top: 24px; }
+.auth-card textarea { width: 100%; min-height: 160px; box-sizing: border-box; padding: 14px; border: 1px solid #d8dee7; border-radius: 10px; font: inherit; resize: vertical; }
+.auth-card textarea:focus { outline: 2px solid #3675a9; outline-offset: 2px; }
+.auth-card button { justify-self: start; }

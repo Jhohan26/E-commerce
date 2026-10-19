@@ -12,13 +12,13 @@ function pageStart(string $active, string $title): void
     header('X-Content-Type-Options: nosniff');
     ?>
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= h($title) ?> · Pagos</title><link rel="stylesheet" href="style.css"></head>
-<body><a class="skip-link" href="#main">Ir al contenido</a><header class="app-header"><a class="brand" href="./" aria-label="Pagos, inicio">pagos.</a><nav aria-label="Navegación principal"><?php foreach (['payment'=>['./','Pago'],'history'=>['history.php','Historial']] as $key=>[$url,$label]): ?><a href="<?= h($url) ?>"<?= $active === $key ? ' aria-current="page"' : '' ?>><?= h($label) ?></a><?php endforeach; ?></nav></header><main id="main">
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= h($title) ?> · Pagos</title><link rel="stylesheet" href="style.css?v=<?= filemtime(__DIR__ . '/style.css') ?>"></head>
+<body><a class="skip-link" href="#main">Ir al contenido</a><header class="app-header"><a class="brand" href="./" aria-label="Pagos, inicio">pagos.</a><nav aria-label="Navegación principal"><?php foreach (['payment'=>['./','Pago'],'history'=>['history.php','Historial']] as $key=>[$url,$label]): ?><a href="<?= h($url) ?>"<?= $active === $key ? ' aria-current="page"' : '' ?>><?= h($label) ?></a><?php endforeach; ?></nav><?php if (isset($_SESSION['auth_token'])): ?><form method="post" action="logout.php"><input type="hidden" name="csrf" value="<?= h($_SESSION['payment_csrf']) ?>"><button class="button secondary" type="submit">Cerrar sesión</button></form><?php elseif ($active !== 'login'): ?><a href="login.php">Ingresar</a><?php endif; ?></header><main id="main">
 <?php
 }
 function pageEnd(bool $poll = false): void
 {
-    ?></main><?php if ($poll): ?><script src="demo.js" defer></script><?php endif; ?></body></html><?php
+    ?></main><?php if ($poll): ?><script src="demo.js?v=<?= filemtime(__DIR__ . '/demo.js') ?>" defer></script><?php endif; ?></body></html><?php
 }
 function inputId(mixed $value): int
 {

@@ -3,7 +3,8 @@ declare(strict_types=1);
 namespace Pagos;
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
-use PhpAmqpLib\Connection\AMQPSSLConnection;
+use PhpAmqpLib\Connection\AMQPConnectionConfig;
+use PhpAmqpLib\Connection\AMQPConnectionFactory;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Message\AMQPMessage;
 
@@ -53,51 +54,26 @@ final class Broker
             throw new \RuntimeException('RABBITMQ_URL incompleta');
         }
 
-        if ($scheme === 'amqps') {
-            $this->connection = new AMQPSSLConnection(
-                $host,
-                $port,
-                $user,
-                $password,
-                $vhost,
-                [
-                    'verify_peer' => true,
-                    'verify_peer_name' => true,
-                    'peer_name' => $host
-                ],
-                [
-                    'connection_timeout' => $config->positiveInt(
-                        'AMQP_CONNECT_TIMEOUT',
-                        5
-                    ),
-                    'read_write_timeout' => $config->positiveInt(
-                        'AMQP_READ_TIMEOUT',
-                        65
-                    ),
-                    'heartbeat' => $config->positiveInt(
-                        'AMQP_HEARTBEAT',
-                        30
-                    )
-                ]
-            );
-        } else {
-            $this->connection = new AMQPStreamConnection(
-                $host,
-                $port,
-                $user,
-                $password,
-                $vhost,
-                false,
-                'AMQPLAIN',
-                null,
-                'en_US',
-                $config->positiveInt('AMQP_CONNECT_TIMEOUT', 5),
-                $config->positiveInt('AMQP_READ_TIMEOUT', 65),
-                null,
-                false,
-                $config->positiveInt('AMQP_HEARTBEAT', 30)
-            );
+        if (strtolower($host) === 'host.rmq.cloudamqp.com') {
+            throw new \RuntimeException('RABBITMQ_URL contiene el servidor de ejemplo. Abre .env y coloca la URL real de RabbitMQ del equipo.');
         }
+
+        $connectionConfig = new AMQPConnectionConfig();
+        $connectionConfig->setIoType(AMQPConnectionConfig::IO_TYPE_STREAM);
+        $connectionConfig->setHost($host);
+        $connectionConfig->setPort($port);
+        $connectionConfig->setUser($user);
+        $connectionConfig->setPassword($password);
+        $connectionConfig->setVhost($vhost);
+        $connectionConfig->setLoginMethod('AMQPLAIN');
+        $connectionConfig->setConnectionTimeout($config->positiveInt('AMQP_CONNECT_TIMEOUT', 5));
+        $connectionConfig->setReadTimeout($config->positiveInt('AMQP_READ_TIMEOUT', 65));
+        $connectionConfig->setWriteTimeout($config->positiveInt('AMQP_READ_TIMEOUT', 65));
+        $connectionConfig->setHeartbeat($config->positiveInt('AMQP_HEARTBEAT', 30));
+        $connectionConfig->setIsSecure($scheme === 'amqps');
+        $connectionConfig->setSslVerify(true);
+        $connectionConfig->setSslVerifyName(true);
+        $this->connection = AMQPConnectionFactory::create($connectionConfig);
 
         $this->channel = $this->connection->channel();
         $this->publisher = $this->connection->channel();
