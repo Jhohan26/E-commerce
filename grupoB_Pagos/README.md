@@ -1189,3 +1189,87 @@ Notificaciones
 ```
 
 y posteriormente validar el flujo completo de los microservicios del e-commerce.
+## Seguridad web local y preparación del taller
+
+El acceso operativo permite exclusivamente operador y administrador. El rol cliente recibe 403. La identidad y el rol proceden del JWT firmado; los formularios no los eligen. La configuración de HS256 y los nombres de claims son provisionales hasta acordar el contrato con Grupo F. Actualmente el validador admite HS256; otro algoritmo o claves públicas requerirán adaptar la validación, además de configurar sus claves.
+
+Rutas públicas: GET login.php, GET health.php y GET ready.php. POST auth-session.php valida el Bearer, el rol y el CSRF de login antes de crear la sesión. index.php, history.php, pending.php, client.php, decide.php y secure-test.php requieren operador o administrador. result.php conserva su redirección al panel protegido. POST logout.php requiere CSRF y destruye sesión y cookie. Los helpers cuyo nombre comienza por _ no son endpoints y Apache impide su acceso directo.
+
+La sesión conserva el JWT en el servidor y lo revalida en cada petición. La cookie es HttpOnly, SameSite Strict y Secure bajo HTTPS. El login regenera el identificador y el CSRF. Los fetch usan same-origin. No se guardan tokens en localStorage ni en URLs. La autenticación HTTP no cambia las credenciales ni los contratos de RabbitMQ.
+
+### Prueba local desde PowerShell
+
+Con Apache y MySQL de XAMPP activos:
+
+```powershell
+Set-Location C:\xampp\htdocs\E-commerce\grupoB_Pagos
+$php = 'C:\xampp\php\php.exe'
+& $php 'C:\ProgramData\ComposerSetup\bin\composer.phar' test
+$tokens = & $php tests/generate_tokens.php
+($tokens | Where-Object { $_ -like 'OPERADOR=*' }) -replace '^OPERADOR=', '' | Set-Clipboard
+Start-Process 'http://localhost/E-commerce/grupoB_Pagos/public/login.php'
+```
+
+Pegar el token e ingresar. Abrir pendientes, seleccionar un pedido y consultar el cliente y el historial. Pagar o Rechazar modifica el pago seleccionado y publica el resultado real: hacerlo únicamente con un pedido de laboratorio acordado. Cerrar sesión mediante el botón y comprobar que una ruta protegida vuelve a responder 401. Repetir con ADMINISTRADOR y comprobar que CLIENTE recibe 403. El generador es exclusivamente CLI de desarrollo, usa la configuración local y emite tokens de una hora; no es un servicio de login del Grupo F. No compartir ni versionar su salida.
+
+Para mantener el consumidor real, ejecutar en otra terminal únicamente cuando se quiera participar en la integración:
+
+```powershell
+Set-Location C:\xampp\htdocs\E-commerce\grupoB_Pagos
+& 'C:\xampp\php\php.exe' bin/console.php consume
+```
+
+Los tests auth.php y auth-web.php usan claves efímeras. auth-web.php inicia un servidor temporal de PHP y bloquea MySQL y RabbitMQ mediante configuración exclusiva del proceso. composer test solo comprueba el aislamiento RabbitMQ; no ejecuta publicaciones contra el broker de los grupos. tests/manual.php es opt-in mediante PAGOS_TEST_DSN, PAGOS_TEST_USER y PAGOS_TEST_PASSWORD: crea únicamente una tabla temporal en su conexión. Las comprobaciones de Clientes de la suite no invocan RPC real.
+
+secure-test.php permite demostrar JWT durante el taller. No publica secretos. Se excluye de la imagen Docker y debe excluirse también de un despliegue final fuera de Docker.
+
+### Imagen de laboratorio
+
+Se eligió PHP 8.2 con Apache de la imagen oficial por su proximidad al entorno XAMPP. DocumentRoot es public; Apache reenvía Authorization y bloquea helpers. La imagen instala dependencias desde composer.lock y no incorpora .env, tests, secretos ni archivos del repositorio Git. Web y consumer reutilizan la misma imagen, con procesos separados.
+
+```powershell
+docker build -t pagos:lab-jwt-v1 .
+docker run --rm --name pagos-web-lab -p 8080:80 --env-file .env pagos:lab-jwt-v1
+```
+
+Abrir http://localhost:8080/login.php. Dentro de un contenedor, DB_HOST=127.0.0.1 apunta al propio contenedor: ajustar la configuración del laboratorio, por ejemplo host.docker.internal para MySQL de Docker Desktop, sin modificar las credenciales del broker compartido. No ejecutar un segundo consumidor contra el broker compartido sin coordinarlo.
+
+### Kubernetes de laboratorio
+
+Los manifiestos son una preparación: requieren Docker, kubectl, un clúster local y acceso de los Pods a MySQL y RabbitMQ. No se han construido imágenes ni desplegado recursos automáticamente.
+
+```powershell
+kubectl create namespace ecommerce --dry-run=client -o yaml | kubectl apply -f -
+Copy-Item k8s/secret.example.yaml k8s/secret.local.yaml
+notepad k8s/secret.local.yaml
+notepad k8s/pagos.yaml
+docker build -t pagos:lab-jwt-v1 .
+```
+
+Completar secret.local.yaml localmente con DB_USER, DB_PASSWORD, RABBITMQ_URL y JWT_SECRET. Este archivo está ignorado. Completar DB_HOST y JWT_ISSUER según el entorno acordado en el ConfigMap. El template de Secret contiene valores vacíos y no debe aplicarse como configuración funcional. No usar kubectl apply -f k8s/ porque incluiría el template vacío.
+
+Docker Desktop Kubernetes puede utilizar la imagen local. Si se usa Minikube, cargarla antes:
+
+```powershell
+minikube image load pagos:lab-jwt-v1
+kubectl apply -f k8s/secret.local.yaml
+kubectl apply -f k8s/pagos.yaml
+kubectl rollout status deployment/pagos-web -n ecommerce
+kubectl rollout status deployment/pagos-consumer -n ecommerce
+kubectl get pods,services -n ecommerce
+kubectl port-forward service/pagos-web 8080:80 -n ecommerce
+```
+
+Abrir http://localhost:8080/login.php. El consumer ejecuta php bin/console.php consume y no recibe JWT_SECRET. El Deployment web mantiene una sola réplica y estrategia Recreate porque las sesiones PHP son locales: reiniciar el Pod cierra las sesiones; escalar web requiere primero almacenamiento compartido de sesiones. Los Secrets no cifran por sí solos toda la configuración del clúster: restringir su acceso y nunca versionar valores reales.
+
+health.php comprueba PHP/HTTP sin conexiones externas y se usa para liveness. ready.php verifica MySQL con SELECT 1, devuelve 503 sin detalles ante fallo y se utiliza para readiness web. No garantiza disponibilidad del RPC de Clientes o RabbitMQ. Las probes del consumer solo comprueban la presencia de su proceso; no certifican la conexión al broker ni detectan todos los bloqueos del bucle. Sus errores fatales hacen terminar el proceso y Kubernetes lo reinicia.
+
+Tras desplegar y coordinar la prueba, eliminar únicamente un Pod propio y observar su reemplazo:
+
+```powershell
+$pod = kubectl get pod -n ecommerce -l app=pagos-web -o jsonpath='{.items[0].metadata.name}'
+kubectl delete pod $pod -n ecommerce
+kubectl get pods -n ecommerce -w
+```
+
+Volver a iniciar sesión después del reemplazo y repetir una consulta. La prueba integrada de decisiones y recuperación con RabbitMQ queda para el entorno coordinado; no se ejecuta en composer test.

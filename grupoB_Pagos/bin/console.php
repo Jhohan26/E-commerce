@@ -2,7 +2,7 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
-use Pagos\{Broker, Database, PaymentRepository, Processor, Simulator};
+use Pagos\{Broker, Database, PaymentRepository, Processor};
 use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
 
@@ -12,7 +12,8 @@ try {
     $config = require dirname(__DIR__) . '/bootstrap.php';
     $command = $argv[1] ?? 'help';
     if ($command === 'help') {
-        echo "Comandos: check-db | setup [--demo-results] | publish archivo.json | consume [--max=N] [--idle-timeout=N] | recover | observe [--max=N] [--idle-timeout=N]\n";
+        echo "Comandos: check-db | setup [--demo-results] | publish archivo.json | consume | recover | observe | observe-input | observe-output\n";
+        echo "consume y observadores admiten --max=N y --idle-timeout=N.\n";
         exit(0);
     }
     if ($command === 'check-db') {
@@ -25,7 +26,7 @@ try {
         echo 'Motor: ' . $pdo->query("SHOW TABLE STATUS WHERE Name = 'pagos'")->fetch()['Engine'] . " (se requiere InnoDB para bloqueo y recuperacion)\n";
         exit(0);
     }
-    if (!in_array($command, ['setup', 'publish', 'consume', 'recover', 'observe'], true)) { throw new InvalidArgumentException('Comando desconocido'); }
+    if (!in_array($command, ['setup', 'publish', 'consume', 'recover', 'observe', 'observe-input', 'observe-output'], true)) { throw new InvalidArgumentException('Comando desconocido'); }
     $broker = new Broker($config);
     $broker->setup(in_array('--demo-results', $argv, true));
     if ($command === 'setup') { echo "Topologia duradera preparada.\n"; }
@@ -40,12 +41,30 @@ try {
     foreach (array_slice($argv, 2) as $option) {
         if (preg_match('/^--(max|idle-timeout)=([1-9][0-9]*)$/D', $option, $match)) { $options[$match[1]] = (int) $match[2]; }
     }
-    if ($command === 'observe') {
-        echo "Observando cola demo. Ctrl+C para detener.\n";
+    if (in_array($command, ['observe', 'observe-input', 'observe-output'], true)) {
+        $observationQueue = $config->get('AMQP_DEMO_QUEUE', 'pagos_resultados_demo');
+        if ($command !== 'observe') {
+            // Una copia por ventana; nunca consumir la cola de Pagos ni la de otro grupo.
+            [$observationQueue] = $broker->channel->queue_declare('', false, false, true, true);
+            $incoming = $command === 'observe-input';
+            $exchange = $incoming
+                ? $config->get('RABBITMQ_EXCHANGE_PEDIDOS', 'pedidos_exchange')
+                : $config->get('RABBITMQ_EXCHANGE_PAGOS', 'pagos_exchange');
+            $keys = $incoming ? [''] : [
+                $config->get('AMQP_KEY_APPROVED', 'pago.aprobado'),
+                $config->get('AMQP_KEY_REJECTED', 'pago.rechazado'),
+            ];
+            foreach ($keys as $key) { $broker->channel->queue_bind($observationQueue, $exchange, $key); }
+            echo ($incoming ? 'ENTRADA: pedidos publicados hacia Pagos.' : 'SALIDA: resultados publicados por Pagos; no confirma procesamiento de Facturacion.') . "\n";
+            echo "Observador activo. Solo mensajes nuevos; Ctrl+C para detener.\n";
+        } else { echo "Observando cola demo. Ctrl+C para detener.\n"; }
         $count = 0; $last = time();
         while (true) {
-            $message = $broker->channel->basic_get($config->get('AMQP_DEMO_QUEUE', 'pagos.resultados_demo'), false);
+            $message = $broker->channel->basic_get($observationQueue, false);
             if ($message !== null) {
+                if ($command !== 'observe') {
+                    echo '[' . gmdate('Y-m-d H:i:s') . ' UTC] ' . $message->getExchange() . ' | ' . $message->getRoutingKey() . "\n";
+                }
                 echo $message->getBody() . "\n";
                 $message->ack(); $last = time(); $count++;
                 if ($options['max'] > 0 && $count >= $options['max']) { break; }
@@ -60,7 +79,7 @@ try {
         $pdo = Database::connect($config);
         $engine = $pdo->query("SHOW TABLE STATUS WHERE Name = 'pagos'")->fetch()['Engine'] ?? '';
         if (strcasecmp($engine, 'InnoDB') !== 0) { throw new RuntimeException('Se requiere InnoDB; no se ha modificado el esquema'); }
-        $processor = new Processor(new PaymentRepository($pdo), new Simulator($config), $broker, $config->inputEvent());
+        $processor = new Processor(new PaymentRepository($pdo), $broker, $config->inputEvent());
         $recover = static function () use ($processor, $config): void {
             $report = $processor->recover($config->positiveInt('RECOVERY_BATCH', 100), static function (int $id, Throwable $error): void {
                 fwrite(STDERR, "Pago $id pendiente; se continua con los demas: " . $error->getMessage() . "\n");
@@ -74,12 +93,14 @@ try {
         else {
             $broker->channel->basic_qos(0, 1, false);
             $count = 0; $lastMessage = time(); $lastRecovery = time();
-            $broker->channel->basic_consume($config->get('AMQP_QUEUE', 'pagos.pedido_creado'), '', false, false, false, false,
+            $broker->channel->basic_consume($config->get('AMQP_QUEUE', 'pagos_pedidos_queue'), '', false, false, false, false,
                 static function (AMQPMessage $message) use ($processor, &$count, &$lastMessage): void {
                     try {
                         $row = $processor->process($message->getBody());
                         $message->ack();
-                        if ((int) $row['evento_publicado'] === 1) {
+                        if ($row['estado'] === 'PENDIENTE') {
+                            echo "Pedido {$row['pedido_id']}: PENDIENTE; selecciona Pagar o Rechazar en la interfaz.\n";
+                        } elseif ((int) $row['evento_publicado'] === 1) {
                             echo "Pedido {$row['pedido_id']}: {$row['estado']}; resultado confirmado o ya publicado.\n";
                         } else {
                             fwrite(STDERR, "Pedido {$row['pedido_id']} guardado; publicacion pendiente: {$row['publication_error']}\n");
