@@ -23,10 +23,22 @@ export function loadConfig(env = process.env) {
   try { url = new URL(rabbitUrl); } catch { throw new Error('RABBITMQ_URL inválida'); }
   if (!['amqp:', 'amqps:'].includes(url.protocol)) throw new Error('Protocolo RabbitMQ inválido');
   if (env.RABBITMQ_REQUIRE_TLS === 'true' && url.protocol !== 'amqps:') throw new Error('Se requiere AMQPS');
+  const clientRabbitUrl = env.CLIENTES_RABBITMQ_URL || rabbitUrl;
+  let clientUrl;
+  try { clientUrl = new URL(clientRabbitUrl); } catch { throw new Error('CLIENTES_RABBITMQ_URL inválida'); }
+  if (!['amqp:', 'amqps:'].includes(clientUrl.protocol) ||
+    (env.RABBITMQ_REQUIRE_TLS === 'true' && clientUrl.protocol !== 'amqps:')) throw new Error('Protocolo de Clientes no permitido');
   return {
     port: positive(env.PORT, 3000, 'PORT'),
     databasePath: env.DATABASE_PATH || './data/notificaciones.sqlite',
+    auth: { secret: env.JWT_SECRET || '', idleSeconds: positive(env.AUTH_IDLE_SECONDS, 1800, 'AUTH_IDLE_SECONDS'),
+      lifetimeSeconds: positive(env.AUTH_LIFETIME_SECONDS, 28800, 'AUTH_LIFETIME_SECONDS'),
+      secureCookie: env.AUTH_SECURE_COOKIE === 'true' },
     rabbitUrl, sources,
+    clientRpc: {
+      rabbitUrl: clientRabbitUrl, username: env.CLIENTES_RPC_USERNAME || '', password: env.CLIENTES_RPC_PASSWORD || '',
+      loginQueue: env.CLIENTES_RPC_LOGIN_QUEUE || 'auth.login', queryQueue: env.CLIENTES_RPC_QUEUE || 'cliente.consultar'
+    },
     email: {
       enabled: env.EMAIL_ENABLED === 'true',
       host: env.SMTP_HOST || 'smtp.gmail.com', port: positive(env.SMTP_PORT, 587, 'SMTP_PORT'),

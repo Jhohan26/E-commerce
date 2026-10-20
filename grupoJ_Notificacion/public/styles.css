@@ -4,3 +4,10 @@
 .email-status[data-state=pending] { color: #9a6700; }
 .email-status[data-state=accepted] { color: #15803d; }
 .email-status[data-state=failed] { color: #b91c1c; }
+
+[hidden] { display: none !important; }
+.access-panel { margin: 8vh auto; padding: 32px; max-width: 450px; background: white; border-radius: 16px; }
+.access-panel label { display: block; margin: 16px 0; }
+.access-panel input { display: block; width: 100%; margin-top: 8px; }
+#access-error { color: #b91c1c; }
+#access-logout { margin-bottom: 16px; }
