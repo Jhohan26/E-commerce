@@ -17,7 +17,6 @@
   "dependencies": {
     "amqplib": "^0.10.9",
     "express": "^5.1.0",
-    "jsonwebtoken": "^9.0.3",
     "nodemailer": "^10.0.16"
   },
   "devDependencies": {

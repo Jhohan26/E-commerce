@@ -14,10 +14,6 @@ services:
       RABBITMQ_PREFETCH: ${RABBITMQ_PREFETCH:-10}
       RABBITMQ_RECONNECT_MS: ${RABBITMQ_RECONNECT_MS:-5000}
       DATABASE_PATH: /app/data/notificaciones.sqlite
-      JWT_SECRET: ${JWT_SECRET:?Configura una clave JWT privada de al menos 32 bytes}
-      AUTH_IDLE_SECONDS: ${AUTH_IDLE_SECONDS:-1800}
-      AUTH_LIFETIME_SECONDS: ${AUTH_LIFETIME_SECONDS:-28800}
-      AUTH_SECURE_COOKIE: ${AUTH_SECURE_COOKIE:-false}
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -25,21 +21,15 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
-      EMAIL_MAX_ATTEMPTS: ${EMAIL_MAX_ATTEMPTS:-5}
-      EMAIL_INTERVAL_MS: ${EMAIL_INTERVAL_MS:-5000}
-      CLIENTES_RPC_TIMEOUT_MS: ${CLIENTES_RPC_TIMEOUT_MS:-10000}
-      CLIENTES_RABBITMQ_URL: ${CLIENTES_RABBITMQ_URL:-}
-      CLIENTES_RPC_LOGIN_QUEUE: ${CLIENTES_RPC_LOGIN_QUEUE:-auth.login}
-      CLIENTES_RPC_QUEUE: ${CLIENTES_RPC_QUEUE:-cliente.consultar}
-      CLIENTES_RPC_USERNAME: ${CLIENTES_RPC_USERNAME:-}
-      CLIENTES_RPC_PASSWORD: ${CLIENTES_RPC_PASSWORD:-}
     ports:
       - "127.0.0.1:${HOST_PORT:-3010}:3000"
     volumes:
-      - ./data:/app/data
+      - notificaciones_data:/app/data
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 6
     restart: unless-stopped
+volumes:
+  notificaciones_data:

@@ -8,15 +8,6 @@ export function handleDelivery(message, channel, service, log, config = {}) {
   let payload;
   try { payload = JSON.parse(message.content.toString('utf8')); }
   catch { log.error('mensaje_invalido', { motivo: 'JSON inválido' }); channel.nack(message, false, false); return; }
-  if (config.access) {
-    try {
-      const header = message.properties?.headers?.authorization ?? message.properties?.headers?.Authorization;
-      const token = typeof header === 'string' ? /^Bearer ([^\s]+)$/i.exec(header)?.[1] : null;
-      config.access.authenticate(token || '', { event: payload?.evento || '__invalid__' });
-    } catch {
-      log.error('evento_no_autorizado'); channel.nack(message, false, false); return;
-    }
-  }
   const source = config.sources?.find(s => s.exchange === message.fields?.exchange);
   if (config.sources && (!source || (source.type !== 'fanout' &&
       !source.keys.includes(message.fields?.routingKey)))) {

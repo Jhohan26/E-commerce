@@ -112,7 +112,7 @@ test('API HTTP: lista, cliente, detalle, leída, paginación y errores', async (
   const service = new NotificationService(repo);
   for (const type of eventTypes) service.process(fixture(type));
   service.process({ ...fixture('PagoAprobado'), pedidoId: 2000, clienteId: 99 });
-  const server = createApp(repo, () => true, log, { allowUnauthenticatedTests: true }).listen(0, '127.0.0.1');
+  const server = createApp(repo, () => true, log).listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const get = path => fetch(base + path);

@@ -4,17 +4,14 @@ import { NotificationRepository } from './repositories/notificationRepository.js
 import { NotificationService } from './services/notificationService.js';
 import { RabbitConsumer } from './consumers/rabbitConsumer.js';
 import { createApp } from './app.js';
-import { AccessService } from './services/accessService.js';
 import { ClientRpc } from './services/clientRpc.js';
 import { createMailer, EmailWorker } from './services/emailWorker.js';
 const config = loadConfig();
 const repository = new NotificationRepository(config.databasePath);
-const access = new AccessService(repository.db, config.auth);
-config.access = access;
 const mailer = config.email.enabled ? createMailer(config) : null;
 const emailWorker = mailer ? new EmailWorker(repository, new ClientRpc(config), mailer, config, logger) : null;
 const consumer = new RabbitConsumer(config, new NotificationService(repository, config.email.enabled), logger);
-const server = createApp(repository, () => consumer.connected, logger, { access, emailEnabled: config.email.enabled }).listen(config.port, () => logger.info('api_iniciada', { puerto: config.port }));
+const server = createApp(repository, () => consumer.connected, logger).listen(config.port, () => logger.info('api_iniciada', { puerto: config.port }));
 consumer.start();
 emailWorker?.start();
 let stopping = false;

@@ -37,7 +37,7 @@ async function setup(t, count = 5) {
     const event = JSON.parse(readFileSync(new URL(`../examples/${types[i % 5]}.json`, import.meta.url)));
     service.process({ ...event, pedidoId: 1000 + i, clienteId: i % 2 ? 99 : 25 });
   }
-  const server = createApp(repo, () => true, console, { allowUnauthenticatedTests: true }).listen(0, '127.0.0.1');
+  const server = createApp(repo, () => true).listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const dom = new JSDOM(html, { url: base, runScripts: 'outside-only' });
