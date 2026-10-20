@@ -62,14 +62,17 @@ Bootstrap no sobreescribe las cuentas existentes ni cambia sus contraseñas.
 6. RABBITMQ: CONTROL DISTINTO DE HTTP
 RABBITMQ_URL: URL privada broker/vhost. RABBITMQ_REQUIRE_TLS=true exige AMQPS.
 Se valida certificado TLS. No usar el JWT de usuario como contraseña del broker.
-RABBITMQ_REQUIRE_EVENT_JWT=false por defecto conserva la integración de eventos.
+RABBITMQ_AUTH_RPC_ENABLED=true activa el login de módulos en integración/Kubernetes.
+RABBITMQ_REQUIRE_EVENT_JWT=false conserva la integración de eventos sin exigir JWT.
 El administrador del broker debe limitar publicación y consumo por cuenta técnica.
 Una cuenta administradora compartida entre grupos no permite aislar productores.
 J valida exchange, clave y contrato; no lee colas de operaciones de otros servicios.
-JWT técnico por mensaje es opcional, no requisito del docente:
-RABBITMQ_REQUIRE_EVENT_JWT=true activa AUTH_RPC_QUEUE=notificaciones.auth.login
-y exige headers.Authorization="Bearer <JWT técnico de J>" en eventos.
-Coordinar con productores antes de activar; no sustituye el JWT de usuarios de F.
+Cada módulo tiene una cuenta de aplicación individual creada por J y recibe
+solo sus credenciales por canal privado. No compartir administrador ni el JSON.
+RABBITMQ_AUTH_RPC_ENABLED controla AUTH_RPC_QUEUE=notificaciones.auth.login.
+RABBITMQ_REQUIRE_EVENT_JWT=true es independiente: exige
+headers.Authorization="Bearer <JWT técnico de J>" en cada evento.
+Coordinar esa exigencia con productores; no sustituye el JWT de usuarios de F.
 examples/LOGIN-RABBITMQ.md documenta esta extensión opcional.
 
 7. FUENTES, CONTRATOS Y PERSISTENCIA

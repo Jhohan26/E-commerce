@@ -51,10 +51,14 @@ Fuentes: pedidos_exchange fanout, pagos_exchange topic (pago.aprobado/rechazado)
 inventario_exchange fanout y facturacion_exchange fanout.
 La cola propia es grupo-j.notificaciones, con su DLQ.
 
-El JWT técnico por evento y notificaciones.auth.login se conservan como opción
-adicional solo con RABBITMQ_REQUIRE_EVENT_JWT=true y acuerdo de productores.
-No sustituyen el login del Grupo F ni son requisitos del taller.
-Ver [ejemplo opcional](examples/LOGIN-RABBITMQ.md).
+`RABBITMQ_AUTH_RPC_ENABLED=true` habilita `notificaciones.auth.login` para que
+cada microservicio obtenga su JWT con credenciales individuales emitidas por J.
+En Docker de integración y Kubernetes está habilitado sin exigir cambios en los
+eventos. `RABBITMQ_REQUIRE_EVENT_JWT=true` es independiente y exige el JWT en
+cada evento; actívalo solo tras coordinarlo con todos los productores. Las
+credenciales AMQPS del broker son distintas. Comparte solo la cuenta de cada
+equipo por un canal privado; nunca subas el JSON de credenciales a GitHub.
+Ver [login RPC por módulo](examples/LOGIN-RABBITMQ.md).
 
 EMAIL_ENABLED=true activa SMTP y consulta de destinatarios mediante F.
 CLIENTES_RPC_USERNAME/PASSWORD son credenciales técnicas asignadas por F a J.

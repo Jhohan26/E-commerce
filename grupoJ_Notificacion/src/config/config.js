@@ -41,6 +41,7 @@ export function loadConfig(env = process.env) {
       secureCookie: env.AUTH_SECURE_COOKIE === 'true' },
     rabbitUrl, sources,
     authRpcQueue: env.AUTH_RPC_QUEUE || 'notificaciones.auth.login',
+    authRpcEnabled: env.RABBITMQ_AUTH_RPC_ENABLED === 'true',
     requireEventJwt: env.RABBITMQ_REQUIRE_EVENT_JWT === 'true',
     userAuth: { mode: userAuthMode, secret: env.CLIENTES_JWT_SECRET || '', issuer: env.CLIENTES_JWT_ISSUER || '',
       audience: env.CLIENTES_JWT_AUDIENCE || '' },

@@ -40,6 +40,11 @@ test('Exige TLS cuando corresponde y valida fuentes', () => {
   assert.equal(loadConfig({ RABBITMQ_URL: 'amqps://example.test/v', RABBITMQ_REQUIRE_TLS: 'true',
     RABBITMQ_SOURCES: JSON.stringify(sources) }).sources.length, 3);
 });
+test('Login RPC se habilita sin exigir JWT en cada evento', () => {
+  const config = loadConfig({ RABBITMQ_AUTH_RPC_ENABLED: 'true', RABBITMQ_REQUIRE_EVENT_JWT: 'false' });
+  assert.equal(config.authRpcEnabled, true);
+  assert.equal(config.requireEventJwt, false);
+});
 test('Filtra inventario y rechaza origen, evento y tamaño incorrectos', () => {
   for (const [exchange, routingKey, evento, maxMessageBytes, expected] of [
     ['inventario_exchange', '', 'InventarioActualizado', 1000, 'ack'],

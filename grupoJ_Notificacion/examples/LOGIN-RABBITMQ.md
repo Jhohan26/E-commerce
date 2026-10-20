@@ -1,14 +1,27 @@
 # Conexión a Notificaciones por RabbitMQ
 
-Esta es una extensión técnica opcional. El laboratorio utiliza la autenticación
-de usuarios del Grupo F y mantiene separado el acceso AMQPS al broker.
-Por defecto los productores no necesitan este login ni un JWT de J para eventos.
-La cola de este ejemplo se activa solo con RABBITMQ_REQUIRE_EVENT_JWT=true,
-después de acordarlo con todos los productores. No otorga acceso al panel.
+Notificaciones crea una cuenta técnica distinta para cada microservicio que
+consume sus eventos: pedidos, pagos, inventario y facturacion. Cada equipo
+recibe solo su usuario y contraseña, por un canal privado. No compartir el JSON
+completo, la cuenta administrador ni credenciales en GitHub o chats grupales.
+La cuenta de cada módulo solo obtiene permisos para sus propios eventos.
 
-Cada grupo recibe su usuario y contraseña de Notificaciones y acceso AMQPS al
-mismo broker y virtual host. No necesita entrar al panel ni usar Postman.
-Notificaciones debe permanecer ejecutándose para responder al login.
+Estas credenciales de aplicación son distintas de las credenciales AMQPS del
+broker. Cada equipo también necesita su propio usuario de CloudAMQP, asignado
+por quien administre el broker. El login de esta guía no da acceso al panel.
+Notificaciones debe permanecer ejecutándose y conectado para responder.
+
+Para activar el endpoint en Docker de integración, configura
+`RABBITMQ_AUTH_RPC_ENABLED=true` (la plantilla de integración ya lo habilita).
+Esto permite solicitar el JWT sin exigir todavía que todos adjunten el token a
+cada evento. `RABBITMQ_REQUIRE_EVENT_JWT=true` es un control separado: solo se
+activa después de coordinarlo con todos los productores.
+
+Las cuentas se crean localmente con `node scripts/manage-access.js bootstrap`.
+Para cambiar una contraseña expuesta, usa
+`node scripts/manage-access.js rotate <cuenta>` y comparte la nueva solo con el
+equipo correspondiente. El archivo `.artifacts/credenciales-modulos.json` está
+excluido de Git y no debe publicarse.
 
 1. Crear una cola de respuesta exclusiva con nombre generado por RabbitMQ.
 2. Enviar al exchange por defecto (`""`), routing key `notificaciones.auth.login`:
@@ -68,4 +81,5 @@ errores de conexión y cierre del canal según el ciclo de vida del servicio.
 Pedidos publica `PedidoCreado`; Pagos, `PagoAprobado` y `PagoRechazado`;
 Inventario, `InventarioInsuficiente`; Facturación, `FacturaGenerada`.
 El administrador usa el panel HTTP; su cuenta no obtiene tokens por esta cola.
-El administrador del broker debe reservar el consumo de la cola de login a J.
+El administrador del broker debe restringir la escritura a la cola de login a
+los usuarios autorizados y reservar el consumo de la cola a Notificaciones.
