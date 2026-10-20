@@ -1,0 +1,218 @@
+{
+  "info": {
+    "name": "Grupo E - Pedidos (Pruebas JWT y Roles - Fase 4)",
+    "_postman_id": "e4f29b10-7c21-4a9b-9d12-901234567890",
+    "description": "Colección lista para importar en Postman que demuestra los 7 casos exigidos en la Fase 4 del Laboratorio de Microservicios y Orquestación (JWT + Roles).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "tokenCliente",
+      "value": ""
+    },
+    {
+      "key": "tokenOperador",
+      "value": ""
+    },
+    {
+      "key": "tokenAdmin",
+      "value": ""
+    },
+    {
+      "key": "tokenVencido",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Emitir Tokens JWT de Prueba",
+      "item": [
+        {
+          "name": "0.1 Emitir Token Rol Cliente (clienteId: 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) pm.collectionVariables.set('tokenCliente', res.token);",
+                  "pm.test('Status 200 y token emitido', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"cliente\",\n  \"clienteId\": 1\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/token"
+          }
+        },
+        {
+          "name": "0.2 Emitir Token Rol Operador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) pm.collectionVariables.set('tokenOperador', res.token);",
+                  "pm.test('Status 200 y token emitido', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"operador\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/token"
+          }
+        },
+        {
+          "name": "0.3 Emitir Token Rol Administrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) pm.collectionVariables.set('tokenAdmin', res.token);",
+                  "pm.test('Status 200 y token emitido', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"administrador\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/token"
+          }
+        },
+        {
+          "name": "0.4 Emitir Token Vencido (para Caso 5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.token) pm.collectionVariables.set('tokenVencido', res.token);",
+                  "pm.test('Status 200 y token vencido generado', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"cliente\",\n  \"clienteId\": 1,\n  \"vencido\": true\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Fase 4 - Los 7 Casos Obligatorios del Laboratorio",
+      "item": [
+        {
+          "name": "Caso 1: Endpoint público sin token (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/productos"
+          }
+        },
+        {
+          "name": "Caso 2: Endpoint protegido sin token (401 Unauthorized)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/pedidos"
+          }
+        },
+        {
+          "name": "Caso 3: Endpoint protegido con token válido (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCliente}}" }
+            ],
+            "url": "{{baseUrl}}/api/pedidos/mios"
+          }
+        },
+        {
+          "name": "Caso 4: Endpoint protegido con token alterado (401 Unauthorized)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenCliente}} firmaAlterada123" }
+            ],
+            "url": "{{baseUrl}}/api/pedidos"
+          }
+        },
+        {
+          "name": "Caso 5: Endpoint protegido con token vencido (401 Unauthorized)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{tokenVencido}}" }
+            ],
+            "url": "{{baseUrl}}/api/pedidos"
+          }
+        },
+        {
+          "name": "Caso 6: Rol no autorizado - Cliente intentando cambiar estado (403 Forbidden)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{tokenCliente}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"PAGADO\"\n}"
+            },
+            "url": "{{baseUrl}}/api/pedidos/1/estado"
+          }
+        },
+        {
+          "name": "Caso 7: Rol autorizado - Operador/Admin cambiando estado o creando pedido (200/201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{tokenAdmin}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": 1,\n  \"productos\": [\n    {\n      \"productoId\": 1,\n      \"cantidad\": 1,\n      \"precio\": 3500000\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/pedidos"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -102,7 +102,7 @@ async function obtenerPedido(idParam) {
   return { ...pedido, productos };
 }
 
-async function cambiarEstado(idParam, estado) {
+async function cambiarEstado(idParam, estado, motivo = null) {
   const id = validarId(idParam);
   const nuevoEstado = String(estado ?? '').toUpperCase().trim();
 
@@ -110,10 +110,11 @@ async function cambiarEstado(idParam, estado) {
     throw new HttpError(400, `Estado inválido. Los permitidos son: ${ESTADOS_VALIDOS.join(', ')}`);
   }
 
-  const existe = await repo.actualizarEstado(id, nuevoEstado);
+  const motivoStr = motivo ? String(motivo).trim() : null;
+  const existe = await repo.actualizarEstado(id, nuevoEstado, motivoStr);
   if (!existe) throw new HttpError(404, `El pedido #${id} no fue encontrado.`);
 
-  return { pedidoId: id, nuevoEstado };
+  return { pedidoId: id, nuevoEstado, motivoCancelacion: nuevoEstado === 'CANCELADO' ? motivoStr : null };
 }
 
 // Reenvía el evento PedidoCreado de un pedido existente a RabbitMQ

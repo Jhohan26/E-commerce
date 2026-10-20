@@ -52,9 +52,11 @@ async function iniciarConsumidorPagos() {
           await service.cambiarEstado(pedidoId, 'PAGADO');
           console.log(`[Pagos -> Pedidos] Pedido #${pedidoId} actualizado a estado "PAGADO" exitosamente.`);
         } else if (evento === 'PagoRechazado' || body.estado === 'RECHAZADO') {
-          await service.cambiarEstado(pedidoId, 'CANCELADO');
-          const motivo = body.motivo ? ` (Motivo: ${body.motivo})` : '';
-          console.log(`[Pagos -> Pedidos] Pedido #${pedidoId} actualizado a estado "CANCELADO"${motivo}.`);
+          const motivo = body.motivo
+            ? `Pago rechazado: ${body.motivo}`
+            : 'Pago rechazado (Grupo B)';
+          await service.cambiarEstado(pedidoId, 'CANCELADO', motivo);
+          console.log(`[Pagos -> Pedidos] Pedido #${pedidoId} actualizado a estado "CANCELADO" (${motivo}).`);
         } else {
           console.log(`[Pagos -> Pedidos] Evento "${evento}" recibido sin acción requerida.`);
         }

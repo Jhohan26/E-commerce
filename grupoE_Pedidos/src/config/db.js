@@ -20,6 +20,12 @@ async function checkDbConnection() {
   try {
     const connection = await pool.getConnection();
     await connection.ping();
+    // Asegurar que la columna motivo_cancelacion exista en la tabla pedidos
+    try {
+      await connection.query(`ALTER TABLE pedidos ADD COLUMN motivo_cancelacion VARCHAR(255) NULL DEFAULT NULL AFTER estado`);
+    } catch (colErr) {
+      // Ignorar si la columna ya existe (código ER_DUP_FIELDNAME)
+    }
     connection.release();
     return { connected: true, message: 'Conectado a MySQL Workbench exitosamente' };
   } catch (error) {

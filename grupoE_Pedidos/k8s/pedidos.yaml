@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pedidos-config
+  namespace: ecommerce
+data:
+  PORT: "3000"
+  DB_HOST: "host.docker.internal"
+  DB_PORT: "3306"
+  DB_NAME: "pedidos_db"
+  RABBITMQ_EXCHANGE: "pedidos_exchange"
+  RABBITMQ_EXCHANGE_TYPE: "fanout"
+  RABBITMQ_ROUTING_KEY: "pedido.creado"
+  RABBITMQ_AUDIT_QUEUE: "pedidos_creados_auditoria"
+  RABBITMQ_CONSUMER_QUEUE: "simulador_pedidos_queue"
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRES_IN: "1800"
+  CLIENTES_RPC_USER: "demo"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pedidos-web
+  namespace: ecommerce
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pedidos-web
+  template:
+    metadata:
+      labels:
+        app: pedidos-web
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: pedidos
+          image: pedidos:lab-jwt-v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: pedidos-config
+            - secretRef:
+                name: pedidos-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            timeoutSeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pedidos-web
+  namespace: ecommerce
+spec:
+  type: LoadBalancer
+  selector:
+    app: pedidos-web
+  ports:
+    - port: 3000
+      targetPort: 3000
+

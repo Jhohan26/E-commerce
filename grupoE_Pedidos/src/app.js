@@ -9,10 +9,21 @@ const pedidosRoutes = require('./routes/pedidosRoutes');
 const clientesRoutes = require('./routes/clientesRoutes');
 const productosRoutes = require('./routes/productosRoutes');
 const healthRoutes = require('./routes/healthRoutes');
+const authRoutes = require('./routes/authRoutes');
 const { notFoundApi, errorHandler } = require('./middlewares/errorHandler');
 
 const app = express();
 
+app.use((req, res, next) => {
+  res.set('Access-Control-Allow-Private-Network', 'true');
+  if (req.method === 'OPTIONS') {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.sendStatus(204);
+  }
+  next();
+});
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -28,6 +39,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // API
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/pedidos', pedidosRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/productos', productosRoutes);
@@ -36,3 +48,4 @@ app.use('/api', notFoundApi);
 app.use(errorHandler);
 
 module.exports = app;
+

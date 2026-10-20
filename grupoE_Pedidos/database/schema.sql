@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS pedidos (
   total DECIMAL(12, 2) NOT NULL DEFAULT 0.00 COMMENT 'Monto total del pedido',
   estado ENUM('PENDIENTE', 'EN_PROCESO', 'PAGADO', 'ENVIADO', 'CANCELADO', 'COMPLETADO') 
     NOT NULL DEFAULT 'PENDIENTE' COMMENT 'Estado del ciclo de vida del pedido',
+  motivo_cancelacion VARCHAR(255) NULL DEFAULT NULL COMMENT 'Motivo si el pedido fue cancelado (ej. inventario insuficiente, pago rechazado)',
   creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   actualizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_cliente (cliente_id),

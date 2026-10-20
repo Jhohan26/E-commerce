@@ -42,6 +42,7 @@ async function listar() {
       ${FECHA_ISO} AS fecha,
       p.total,
       p.estado,
+      p.motivo_cancelacion AS motivoCancelacion,
       p.creado_en AS creadoEn,
       COUNT(i.id) AS totalItems,
       COALESCE(SUM(i.cantidad), 0) AS totalUnidades
@@ -55,7 +56,7 @@ async function listar() {
 
 async function buscarPorId(id) {
   const [rows] = await pool.query(
-    `SELECT p.id, p.cliente_id AS clienteId, ${FECHA_ISO} AS fecha, p.total, p.estado, p.creado_en AS creadoEn
+    `SELECT p.id, p.cliente_id AS clienteId, ${FECHA_ISO} AS fecha, p.total, p.estado, p.motivo_cancelacion AS motivoCancelacion, p.creado_en AS creadoEn
      FROM pedidos p WHERE p.id = ?`,
     [id]
   );
@@ -71,9 +72,13 @@ async function itemsDePedido(pedidoId) {
   return rows;
 }
 
-// Actualiza el estado del pedido; devuelve true si existía
-async function actualizarEstado(id, estado) {
-  const [result] = await pool.execute(`UPDATE pedidos SET estado = ? WHERE id = ?`, [estado, id]);
+// Actualiza el estado del pedido y opcionalmente el motivo (si es cancelado); devuelve true si existía
+async function actualizarEstado(id, estado, motivo = null) {
+  const motivoFinal = estado === 'CANCELADO' ? (motivo || 'Cancelado') : null;
+  const [result] = await pool.execute(
+    `UPDATE pedidos SET estado = ?, motivo_cancelacion = ? WHERE id = ?`,
+    [estado, motivoFinal, id]
+  );
   return result.affectedRows > 0;
 }
 
