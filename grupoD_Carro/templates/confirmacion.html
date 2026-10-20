@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Pedido enviado{% endblock %}
+{% block contenido %}
+<main class="ticket">
+  <svg width="56" height="56" style="color:var(--ok)" aria-hidden="true"><use href="#i-shield"/></svg>
+  <h1 class="disp">¡Pedido enviado!</h1>
+  <div class="num">Pedido #{{ evento.pedidoId }}</div>
+  <p>{{ cliente.primer_nombre }} {{ cliente.primer_apellido }} · Total <strong>{{ evento.total | cop }}</strong></p>
+  <table>
+    {% for l in lineas %}
+    <tr><td>{{ l.cantidad }} × {{ l.nombre }}</td><td class="num2">{{ l.subtotal | cop }}</td></tr>
+    {% endfor %}
+  </table>
+  <h2 class="disp">Evento publicado en RabbitMQ</h2>
+  <pre>{{ evento | tojson(indent=2) }}</pre>
+  <div class="acciones"><a class="cta" style="border-color:var(--az)" href="/cliente/{{ cliente.id }}">Volver a la tienda</a></div>
+</main>
+{% endblock %}

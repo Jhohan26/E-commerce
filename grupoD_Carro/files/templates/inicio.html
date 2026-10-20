@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block titulo %}Elegir cliente{% endblock %}
+{% block contenido %}
+<div class="panel">
+  <h1>¿Quién va a comprar?</h1>
+  {% if error %}<div class="aviso" role="alert">{{ error }}</div>{% endif %}
+  <form class="en-linea" method="get" action="/">
+    <label for="cliente_id">Id del cliente</label>
+    <input id="cliente_id" type="number" name="cliente_id" min="1" value="{{ cliente_id }}" required>
+    <button type="submit">Ver tienda</button>
+  </form>
+</div>
+{% endblock %}

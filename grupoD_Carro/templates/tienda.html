@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% from "_arte.html" import arte, linea %}
+{% block titulo %}Tienda de {{ cliente.primer_nombre }}{% endblock %}
+
+{% set cantidad_total = lineas | sum(attribute='cantidad') %}
+{% set iniciales = ((cliente.primer_nombre or '?')[0] ~ (cliente.primer_apellido or '')[:1]) | upper %}
+{% set nombre_completo = [cliente.primer_nombre, cliente.segundo_nombre, cliente.primer_apellido, cliente.segundo_apellido] | select | join(' ') %}
+{% set puede_pedir = lineas and cliente.estado != 0 %}
+
+{% block burger %}
+<button class="burger" id="burger" type="button" aria-label="Abrir menú" aria-expanded="false"><svg width="24" height="24"><use href="#i-menu"/></svg></button>
+{% endblock %}
+
+{% block nav %}
+<nav class="nav" id="nav" aria-label="Principal">
+  <label class="search sm"><svg width="20" height="20"><use href="#i-search"/></svg><input id="q2" type="search" placeholder="Buscar productos" aria-label="Buscar productos"></label>
+  <a href="#catalogo" data-ir="tienda">Productos</a>
+  <a href="#" id="navCarrito">Mi carrito</a>
+  <a href="/">Cambiar de cliente</a>
+</nav>
+<div class="grow"></div>
+<label class="search"><svg width="20" height="20"><use href="#i-search"/></svg><input id="q" type="search" placeholder="Buscar productos" aria-label="Buscar productos"></label>
+<div class="dd" id="ddCuenta">
+  <button class="ico" type="button" aria-label="Mi cuenta" aria-expanded="false" aria-haspopup="true"><svg width="24" height="24"><use href="#i-user"/></svg></button>
+  <div class="menu right acc">
+    <div class="who">
+      <div class="avatar">{{ iniciales }}</div>
+      <div><strong>{{ nombre_completo }}</strong><span class="mut">{{ cliente.correo }}{% if cliente.estado == 0 %} · Cuenta deshabilitada{% endif %}</span></div>
+    </div>
+    <form method="get" action="/">
+      <label for="cid">Número de cliente</label>
+      <div class="row"><input id="cid" type="number" name="cliente_id" min="1" value="{{ cliente.id }}" required><button class="btn" type="submit">Cambiar</button></div>
+    </form>
+    <small>Cliente actual: #{{ cliente.id }}</small>
+  </div>
+</div>
+<button class="ico cart" id="btnCart" type="button" aria-label="Abrir carrito"><svg width="26" height="26"><use href="#i-cart"/></svg><span class="badge" id="badge">{{ cantidad_total }}</span></button>
+{% endblock %}
+
+{% block aviso %}
+{% if mensaje %}<div class="alerta err" role="alert"><div class="wrap">{{ mensaje }}</div></div>{% endif %}
+{% endblock %}
+
+{% block contenido %}
+<div id="vistaTienda">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1 class="disp">Llena tu carrito <em>antes del pitazo</em></h1>
+        <p>Hola, {{ cliente.primer_nombre }}. Agrega, revisa y pide sin salir de la página.</p>
+        <a class="cta" href="#catalogo">Ver productos <svg width="22" height="22"><use href="#i-chev" transform="rotate(-90 12 12)"/></svg></a>
+      </div>
+      <div class="art" aria-hidden="true">
+        <svg viewBox="0 -14 150 184" class="qm">
+          <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M38 52C38 26 56 14 72 14C92 14 104 28 104 46C104 64 86 72 72 82C65 87 64 94 64 106" stroke="#fff" stroke-width="42"/>
+            <path d="M38 52C38 26 56 14 72 14C92 14 104 28 104 46C104 64 86 72 72 82C65 87 64 94 64 106" stroke="#01036B" stroke-width="28"/>
+            <path d="M50 44C50 32 58 26 68 26" stroke="#F8BB14" stroke-width="7"/>
+          </g>
+          <circle cx="64" cy="142" r="21" fill="#fff"/><circle cx="64" cy="142" r="14" fill="#01036B"/>
+          <g stroke="#01036B" stroke-width="7" stroke-linecap="round"><path d="M10 28l14 8M18 62l-12 2M128 8l-6 14M138 60l12 5M132 110l14 8"/></g>
+        </svg>
+        <div class="sticker"><b>Tu carrito</b>siempre a un clic de distancia</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cat wrap" id="catalogo">
+    <div class="cat-hd">
+      <h2 class="disp">Todo el equipo</h2>
+      <div class="tools"><span class="mut" id="conteo">{{ productos | length }} productos</span>
+        <select id="orden" aria-label="Ordenar"><option value="rel">Ordenar: Destacados</option><option value="menor">Precio: menor a mayor</option><option value="mayor">Precio: mayor a menor</option></select></div>
+    </div>
+    <div class="grid" id="grid">
+      {% for p in productos %}
+      <article class="card" data-nombre="{{ p.nombre | lower }}" data-precio="{{ p.precio }}" data-pos="{{ loop.index }}">
+        <div class="pic">{{ arte(p.id, p.nombre) }}</div>
+        <div class="inf"><h3>{{ p.nombre }}</h3><div class="pr">{{ p.precio | cop }}</div></div>
+        <form class="buy" method="post" action="/cliente/{{ cliente.id }}/agregar">
+          <input type="hidden" name="producto_id" value="{{ p.id }}">
+          <input class="qtyin" type="number" name="cantidad" value="1" min="1" aria-label="Cantidad de {{ p.nombre }}">
+          <button class="add" type="submit"><svg width="20" height="20"><use href="#i-cart"/></svg><span>Agregar</span></button>
+        </form>
+      </article>
+      {% endfor %}
+      <div class="vacio" id="sinResultados" hidden><b>Sin resultados</b>Prueba con otra palabra.</div>
+    </div>
+  </section>
+
+  <div class="perks"><div class="wrap">
+    <div><svg><use href="#i-shield"/></svg>Cliente verificado antes de cada pedido</div>
+    <div><svg><use href="#i-bolt"/></svg>Carrito actualizado al instante</div>
+    <div><svg><use href="#i-truck"/></svg>Pedido enviado a Pedidos en un clic</div>
+  </div></div>
+</div>
+
+<div id="vistaCarrito">
+  <div class="cart-hero"><div class="wrap">
+    <button id="seguir" type="button">‹ Seguir comprando</button>
+    <h1 class="disp">Tu carrito <span>{% if cantidad_total %}({{ cantidad_total }}){% endif %}</span></h1>
+  </div></div>
+  <div class="wrap cart-grid">
+    <div>
+      {% if lineas %}{% for l in lineas %}{{ linea(l, cliente, arte) }}{% endfor %}
+      {% else %}<div class="vacio" style="margin:24px 0"><b>Tu carrito está vacío</b>Agrega productos desde el catálogo.</div>{% endif %}
+    </div>
+    <aside class="resumen">
+      <h3 class="disp">Resumen</h3>
+      <div class="r"><span>Artículos</span><span>{{ cantidad_total }}</span></div>
+      <div class="r"><span>Subtotal</span><span>{{ total | cop }}</span></div>
+      <div class="r t"><span>Total</span><span>{{ total | cop }}</span></div>
+      <form method="post" action="/cliente/{{ cliente.id }}/pedido">
+        <button class="go" type="submit" {% if not puede_pedir %}disabled{% endif %}><span>Realizar pedido</span><svg width="22" height="22"><use href="#i-chev" transform="rotate(-90 12 12)"/></svg></button>
+      </form>
+      {% if lineas %}
+      <form method="post" action="/cliente/{{ cliente.id }}/vaciar" data-mantener>
+        <button class="clear" type="submit">Vaciar carrito</button>
+      </form>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block despues %}
+<div class="shade" id="shade"></div>
+<aside class="drawer" id="drawer" aria-label="Carrito" aria-hidden="true">
+  <header><h2 class="disp">Tu carrito <span>{% if cantidad_total %}({{ cantidad_total }}){% endif %}</span></h2><button id="cerrar" type="button" aria-label="Cerrar carrito">✕</button></header>
+  <div class="lista">
+    {% if lineas %}{% for l in lineas %}{{ linea(l, cliente, arte) }}{% endfor %}
+    {% else %}<div class="vacio" style="margin:24px 0"><b>Tu carrito está vacío</b>Agrega productos desde el catálogo.</div>{% endif %}
+  </div>
+  <div class="pie">
+    <div class="r t"><span>Total</span><span>{{ total | cop }}</span></div>
+    <form method="post" action="/cliente/{{ cliente.id }}/pedido">
+      <button class="go" type="submit" {% if not puede_pedir %}disabled{% endif %}><span>Realizar pedido</span><svg width="22" height="22"><use href="#i-chev" transform="rotate(-90 12 12)"/></svg></button>
+    </form>
+    <button class="ver" id="verFull" type="button">Ver carrito completo</button>
+    {% if lineas %}
+    <form method="post" action="/cliente/{{ cliente.id }}/vaciar" data-mantener>
+      <button class="clear" type="submit">Vaciar carrito</button>
+    </form>
+    {% endif %}
+  </div>
+</aside>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const vTienda = $('#vistaTienda'), vCarrito = $('#vistaCarrito');
+function ir(v) {
+  vTienda.style.display = v === 'tienda' ? 'block' : 'none';
+  vCarrito.style.display = v === 'carrito' ? 'block' : 'none';
+  window.scrollTo({top: 0}); cerrarMenus(); cerrarDrawer();
+}
+function abrirDrawer() { $('#toast').classList.remove('on'); $('#drawer').classList.add('on'); $('#shade').classList.add('on'); $('#drawer').setAttribute('aria-hidden', 'false'); $('#cerrar').focus(); }
+function cerrarDrawer() { $('#drawer').classList.remove('on'); $('#shade').classList.remove('on'); $('#drawer').setAttribute('aria-hidden', 'true'); }
+$('#btnCart').onclick = abrirDrawer;
+$('#cerrar').onclick = $('#shade').onclick = cerrarDrawer;
+$('#toastBtn').onclick = abrirDrawer;
+$('#verFull').onclick = () => ir('carrito');
+$('#seguir').onclick = () => ir('tienda');
+$('#navCarrito').onclick = e => { e.preventDefault(); ir('carrito'); };
+$$('[data-ir]').forEach(a => a.addEventListener('click', () => ir('tienda')));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { cerrarMenus(); cerrarDrawer(); } });
+
+/* Buscar y ordenar (solo en el navegador, no cambia el servidor) */
+let busq = '', orden = 'rel';
+function pintar() {
+  const grid = $('#grid'), cards = $$('.card', grid);
+  cards.sort((a, b) => orden === 'menor' ? a.dataset.precio - b.dataset.precio : orden === 'mayor' ? b.dataset.precio - a.dataset.precio : a.dataset.pos - b.dataset.pos);
+  const aviso = $('#sinResultados');
+  let n = 0;
+  cards.forEach(c => { const ok = !busq || c.dataset.nombre.includes(busq); c.hidden = !ok; if (ok) n++; grid.insertBefore(c, aviso); });
+  aviso.hidden = n > 0;
+  $('#conteo').textContent = n + ' producto' + (n === 1 ? '' : 's');
+}
+$$('#q,#q2').forEach(i => i.addEventListener('input', e => {
+  busq = e.target.value.trim().toLowerCase(); $('#q').value = $('#q2').value = e.target.value;
+  ir('tienda'); pintar();
+}));
+$('#orden').onchange = e => { orden = e.target.value; pintar(); };
+
+/* Mantiene el contexto (cajón abierto / posición) después de enviar un formulario */
+$$('form.buy').forEach(f => f.addEventListener('submit', () => {
+  sessionStorage.setItem('carritoVolver', 'agregado'); sessionStorage.setItem('carritoScroll', window.scrollY);
+}));
+$$('form[data-mantener]').forEach(f => f.addEventListener('submit', () => {
+  sessionStorage.setItem('carritoVolver', f.closest('#drawer') ? 'drawer' : 'full');
+}));
+(() => {
+  const v = sessionStorage.getItem('carritoVolver'); if (!v) return;
+  sessionStorage.removeItem('carritoVolver');
+  if (v === 'agregado') { window.scrollTo({top: Number(sessionStorage.getItem('carritoScroll')) || 0, behavior: 'instant'}); toast('Producto agregado al carrito', true); }
+  else if (v === 'drawer') abrirDrawer();
+  else if (v === 'full') ir('carrito');
+})();
+</script>
+{% endblock %}

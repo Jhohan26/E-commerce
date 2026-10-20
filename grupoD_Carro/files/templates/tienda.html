@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titulo %}Tienda de {{ cliente.primer_nombre }}{% endblock %}
+{% block contenido %}
+<div class="panel cliente">
+  <div>
+    <h1>{{ cliente.primer_nombre }} {{ cliente.segundo_nombre or "" }} {{ cliente.primer_apellido }} {{ cliente.segundo_apellido or "" }}</h1>
+    <p>{{ cliente.correo }}{% if cliente.estado == 0 %} · <strong>Cuenta deshabilitada</strong>{% endif %}</p>
+  </div>
+  <a href="/">Cambiar de cliente</a>
+</div>
+
+{% if mensaje %}<div class="aviso" role="alert">{{ mensaje }}</div>{% endif %}
+
+<div class="grid">
+  <section class="panel">
+    <h2>Productos</h2>
+    {% for p in productos %}
+    <div class="producto">
+      <div><strong>{{ p.nombre }}</strong><br><span class="precio">{{ p.precio | cop }}</span></div>
+      <form class="en-linea" method="post" action="/cliente/{{ cliente.id }}/agregar">
+        <input type="hidden" name="producto_id" value="{{ p.id }}">
+        <input type="number" name="cantidad" value="1" min="1" aria-label="Cantidad de {{ p.nombre }}">
+        <button type="submit">Agregar al carrito</button>
+      </form>
+    </div>
+    {% endfor %}
+  </section>
+
+  <aside class="panel">
+    <h2>Carrito</h2>
+    {% if lineas %}
+    <table>
+      {% for l in lineas %}
+      <tr>
+        <td>{{ l.cantidad }} × {{ l.nombre }}</td>
+        <td class="num">{{ l.subtotal | cop }}</td>
+        <td class="num">
+          <form class="en-linea" method="post" action="/cliente/{{ cliente.id }}/quitar">
+            <input type="hidden" name="producto_id" value="{{ l.id }}">
+            <button class="sec" type="submit" aria-label="Quitar {{ l.nombre }}">Quitar</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="total"><span>Total</span><span>{{ total | cop }}</span></div>
+    <form method="post" action="/cliente/{{ cliente.id }}/pedido" style="margin-bottom:.5rem">
+      <button type="submit" {% if cliente.estado == 0 %}disabled{% endif %}>Realizar pedido</button>
+    </form>
+    <form method="post" action="/cliente/{{ cliente.id }}/vaciar">
+      <button class="sec" type="submit">Vaciar carrito</button>
+    </form>
+    {% else %}
+    <p class="vacio">Aún no hay productos. Agrega alguno de la lista.</p>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
