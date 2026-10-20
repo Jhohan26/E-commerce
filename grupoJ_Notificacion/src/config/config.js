@@ -35,6 +35,7 @@ export function loadConfig(env = process.env) {
       lifetimeSeconds: positive(env.AUTH_LIFETIME_SECONDS, 28800, 'AUTH_LIFETIME_SECONDS'),
       secureCookie: env.AUTH_SECURE_COOKIE === 'true' },
     rabbitUrl, sources,
+    authRpcQueue: env.AUTH_RPC_QUEUE || 'notificaciones.auth.login',
     clientRpc: {
       rabbitUrl: clientRabbitUrl, username: env.CLIENTES_RPC_USERNAME || '', password: env.CLIENTES_RPC_PASSWORD || '',
       loginQueue: env.CLIENTES_RPC_LOGIN_QUEUE || 'auth.login', queryQueue: env.CLIENTES_RPC_QUEUE || 'cliente.consultar'

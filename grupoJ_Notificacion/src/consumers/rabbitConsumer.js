@@ -1,6 +1,7 @@
 import amqp from 'amqplib';
 import { assertTopology } from '../config/topology.js';
 import { handleDelivery } from './handler.js';
+import { startAuthRpc } from './authRpc.js';
 export class RabbitConsumer {
   constructor(config, service, log) { this.config = config; this.service = service; this.log = log; this.connected = false; this.stopped = false; }
   start() { this.stopped = false; void this.connect(); }
@@ -25,6 +26,7 @@ export class RabbitConsumer {
       channel.on('close', () => { this.connected = false; void connection.close().catch(() => {}); });
       await assertTopology(channel, this.config);
       await channel.prefetch(this.config.prefetch);
+      if (this.config.access) await startAuthRpc(connection, this.config);
       if (this.stopped) { await connection.close(); return; }
       let failed = false;
       await channel.consume(this.config.queue, message => {

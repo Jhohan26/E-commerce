@@ -38,7 +38,7 @@ export class AccessService {
       this.db.exec('COMMIT');
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
-  async login(username, password, address = 'local') {
+  async login(username, password, address = 'local', { moduleOnly = false } = {}) {
     const now = this.clock();
     const keys = [`ip:${address}`, `user:${username}`];
     for (const key of keys) {
@@ -52,6 +52,7 @@ export class AccessService {
     const candidate = await scrypt(password, account?.salt || 'invalid-account-salt', 64);
     const expected = account ? Buffer.from(account.passwordHash, 'hex') : Buffer.alloc(64);
     if (!account || !account.enabled || !timingSafeEqual(candidate, expected)) throw new AccessError('Credenciales incorrectas');
+    if (moduleOnly && account.role !== 'module') throw new AccessError('El login RPC es exclusivo para módulos', 403);
     this.db.prepare('DELETE FROM LoginThrottle WHERE key=?').run(`user:${username}`);
     this.db.prepare('DELETE FROM AccessSession WHERE expires<=? OR lastActivity<=?').run(now, now - this.idleSeconds * 1000);
     const id = randomUUID();

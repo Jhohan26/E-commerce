@@ -69,3 +69,36 @@ Los publicadores de Pedidos, Pagos, Inventario y Facturación del ZIP recibido t
 Fuera de localhost se requiere HTTPS para el login y la API, AMQPS para RabbitMQ y AUTH_SECURE_COOKIE=true. No entregar JWT_SECRET a los demás módulos. Con Docker, crear las cuentas contra la base del volumen mediante `docker compose --env-file .env.integracion -f docker-compose.integracion.yml exec notificaciones node scripts/manage-access.js bootstrap`; las credenciales estarán dentro del contenedor en /app/.artifacts/credenciales-modulos.json y deben recuperarse de forma privada.
 
 `npm run test:integration` crea recursos temporales en el broker configurado: ejecutar solo en pruebas. El script publish sirve para la topología local; no ejecutar eventos de prueba en el broker común porque pueden desencadenar operaciones en otros servicios.
+
+
+LOGIN DE MÓDULOS MEDIANTE CLOUDAMQP (20 de octubre de 2026)
+Notificaciones atiende AUTH_RPC_QUEUE=notificaciones.auth.login en RABBITMQ_URL.
+Esta cola es distinta de auth.login, que pertenece a Clientes.
+No hace falta una URL HTTP pública para obtener el JWT por esta vía.
+Notificaciones y el módulo solicitante deben estar encendidos y tener acceso
+al mismo broker/vhost. CloudAMQP transporta la solicitud; J emite el token.
+
+Solicitud JSON: {"username":"pedidos","password":"<credencial individual>"}.
+Enviar al exchange por defecto con routing key notificaciones.auth.login,
+replyTo con una cola temporal exclusiva generada por RabbitMQ (amq.gen-...),
+correlationId aleatorio, persistent=false y expiration=15000.
+Respuesta JSON: {"status":200,"data":{"access_token":"<JWT>",
+"token_type":"Bearer","expiresAt":"<ISO>","inactivitySeconds":1800,"role":"module"}}.
+Errores: status 400/401/403/413/429/500 y campo error; no incluyen secretos.
+El administrador continúa usando el panel HTTP; no se admite su login RPC.
+La cola no es durable, tiene TTL de 15 segundos, máximo 100 solicitudes y
+consumo secuencial. No se vincula a la cola de errores de eventos.
+Se mantiene el límite compartido de 10 logins por 15 minutos por transporte
+RabbitMQ, además del límite por cuenta. Reutilizar los tokens para no agotarlo.
+No enviar credenciales continuamente ni publicarlas en exchanges de eventos.
+
+Publicar los eventos habituales con headers.Authorization="Bearer <JWT de J>".
+Conservar el token en memoria; al expirar por inactividad o duración absoluta,
+volver a solicitarlo con las mismas credenciales. No hay que pedirlo a J manualmente.
+RabbitMQ no devuelve al productor el 401 del consumidor de eventos: coordinar
+renovación antes de la expiración y la inactividad, y revisar los rechazos.
+Ejemplo: examples/notificaciones-rpc.js exporta un cliente con login cacheado.
+La cola y JWT no sustituyen los usuarios y permisos del broker: reservar a J
+la lectura de notificaciones.auth.login y de su cola de eventos; los otros
+módulos necesitan publicar login y consumir exclusivamente su cola de respuesta.
+AMQPS cifra el transporte; quien administre el broker puede ver los mensajes.
