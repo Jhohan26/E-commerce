@@ -1,209 +1,139 @@
-CONFIGURACIONES DEL MICROSERVICIO DE NOTIFICACIONES — GRUPO J
-Actualización: 19 de octubre de 2026.
-Referencia de integración: E-commerce-main (2).zip.
+CONFIGURACIONES DE NOTIFICACIONES — GRUPO J
+Versión 2.0.0 — 20 de octubre de 2026
+Referencia: laboratorio JWT/Kubernetes y E-commerce-main (3).zip.
 
-1. TECNOLOGÍAS
-Node.js 24 o superior, JavaScript con módulos ES, Express, RabbitMQ,
-SQLite, HTML y CSS. El frontend se sirve desde el mismo proceso HTTP.
-Dependencias: express ^5.1.0, amqplib ^0.10.9, nodemailer ^10.0.16,
-jsonwebtoken ^9.0.3. Pruebas de interfaz con jsdom ^29.1.1.
-package-lock.json fija las versiones instaladas; usar npm ci.
-
-2. ARCHIVOS PRIVADOS Y PLANTILLAS
-.env: entorno local; .env.integracion: entorno del equipo.
-.env.example y .env.integracion.example: plantillas sin secretos.
-.artifacts/credenciales-modulos.json: cuentas locales de acceso a J.
-Los archivos privados, datos, node_modules y .artifacts se excluyen del ZIP
-y de Git. Nunca publicar URLs que contengan contraseñas ni JWT_SECRET.
-
-3. PUERTOS Y EJECUCIÓN
-Node local: PORT, predeterminado 3000.
-Docker: puerto interno 3000; HOST_PORT controla el puerto externo.
-Compose de integración: HOST_PORT=3010 y enlace local 127.0.0.1.
-Bandeja de integración: http://localhost:3010.
-RabbitMQ local: 5672; panel local: 15672.
-RabbitMQ remoto: AMQPS, normalmente puerto 5671.
-No se requiere exponer el backend a internet para consumir RabbitMQ.
-Para que otros equipos usen el login HTTP, necesitan una URL de J
-accesible desde sus computadores; su localhost no es el nuestro.
-
-Ejecución Node con entorno de integración:
-node --env-file=.env.integracion src/index.js
-Si se desea puerto 3010 fuera de Docker, definir PORT=3010 en ese entorno.
-
-Ejecución Docker:
+1. EJECUCIÓN
+Node.js >=24, Express, SQLite, RabbitMQ, nodemailer, jsonwebtoken.
+npm ci; npm test.
+docker build -t grupo-j-notificaciones:2.0.0 .
 docker compose --env-file .env.integracion -f docker-compose.integracion.yml up -d --build
+PORT=3000 interno; HOST_PORT=3010 en integración, enlace 127.0.0.1.
+Node directo: node --env-file=.env.integracion src/index.js
+DATABASE_PATH=./data/notificaciones.sqlite; /app/data/notificaciones.sqlite en Docker.
+Una réplica y worker por SQLite. El SQL MySQL es referencia, no motor conectado.
 
-4. PERSISTENCIA
-Motor ejecutable: SQLite mediante node:sqlite.
-DATABASE_PATH: ./data/notificaciones.sqlite en Node y /app/data/notificaciones.sqlite
-en Docker. Revisar el montaje de data en el Compose antes de desplegar.
-Notificacion guarda evento, cliente, pedido, mensaje, lectura y deduplicación.
-EmailJob guarda el envío pendiente, intentos, próximo intento y resultado SMTP.
-ModuleAccount guarda cuentas con hash scrypt y sal aleatoria; no texto plano.
-AccessSession guarda sesiones revocables y última actividad.
-LoginThrottle limita intentos de acceso por IP y cuenta.
-database/mysql/001_notificacion.sql es una referencia, no la base activa.
-No se accede directamente a las tablas de Clientes ni de los otros grupos.
+2. SECRETOS
+.env y .env.integracion son privados; .example son plantillas sin secretos.
+JWT_SECRET: clave privada local de J, aleatoria, mínimo 32 bytes.
+CLIENTES_JWT_SECRET: clave HS256 acordada con F, mínimo 32 bytes.
+No copiar claves predeterminadas ni publicar credenciales en Git.
+.artifacts/credenciales-modulos.json, bases y Secret reales quedan excluidos.
+Base64 en Kubernetes Secret no es cifrado.
 
-5. EVENTOS RECIBIDOS
-Pedidos E: pedidos_exchange, fanout, evento PedidoCreado.
-Pagos B: pagos_exchange, topic, claves pago.aprobado y pago.rechazado,
-eventos PagoAprobado y PagoRechazado.
-Inventario H: inventario_exchange, fanout, evento InventarioInsuficiente.
-Facturación K: facturacion_exchange, fanout, evento FacturaGenerada.
-RABBITMQ_SOURCES contiene esta lista de exchanges, tipos, claves y eventos.
-La salida de Pagos reemplaza la configuración antigua ecommerce.eventos.
-No redeclarar un exchange existente con un tipo distinto ni borrar recursos
-compartidos para resolver un conflicto; coordinarlo con el administrador.
+3. AUTENTICACIÓN DE USUARIOS
+USER_AUTH_MODE=clientes: login delegado a F y validación de JWT externos.
+USER_AUTH_MODE=local: demostración independiente, no integración central certificada.
+No hay fallback automático de F hacia cuentas locales.
+CLIENTES_JWT_ISSUER: emisor exacto acordado con F, obligatorio en modo clientes.
+CLIENTES_JWT_AUDIENCE: opcional; debe coincidir si se configura.
+Claims requeridos: sub no vacío, iat, exp, iss y role o rol firmado.
+Si aparecen role y rol deben coincidir. Algoritmo admitido: HS256.
+Roles: cliente, operador, administrador. Solo administrador usa las APIs de bandeja.
+Cliente y operador reciben 403. No se acepta como autenticación un rol del cuerpo.
+Token ausente, vencido, alterado, emisor incorrecto o claims incompletos: 401.
+El ZIP (3) de F aún no firma rol ni emisor. Se rechaza ese token sin inventar datos.
+Ver docs/INTEGRACION-CLIENTES.md para los cambios que F debe confirmar.
 
-Cola propia: RABBITMQ_QUEUE=grupo-j.notificaciones.
-Errores: grupo-j.notificaciones.errores, enlazada al exchange propio
-grupo-j.notificaciones.errores.exchange con clave error.
-J nunca consume las colas de operación de otros grupos.
-RABBITMQ_PREFETCH=10; RABBITMQ_RECONNECT_MS=5000;
-RABBITMQ_HEARTBEAT=30; RABBITMQ_MAX_MESSAGE_BYTES=262144.
-RABBITMQ_REQUIRE_TLS=true en el despliegue compartido.
+4. ENDPOINTS
+GET / y archivos web: públicos, formulario sin información privada.
+GET /health/live: público, proceso HTTP.
+GET /health/ready: público; consumidor conectado=200, desconectado=503.
+POST /api/auth/login: público limitado, JSON username/password.
+En modo clientes envía usuario/password a auth.login de F.
+Devuelve access_token, token_type, expires_in, expiresAt, inactivitySeconds y role.
+GET /api/auth/session: administrador autenticado.
+POST /api/auth/logout: autenticado; revocación en J y eliminación de cookie.
+GET /api/notificaciones, /cliente/:clienteId, /:id: administrador.
+PATCH /api/notificaciones/:id/leida: administrador; cambia lectura.
+POST /api/auth/module-login: cuentas técnicas locales, opcional.
+POST /api/eventos: cuenta técnica local autorizada para el evento.
+400 JSON/contrato inválido; 401 autenticación; 403 permiso; 404 recurso;
+429 limitación de login; 503 dependencia de autenticación no disponible.
 
-6. CONTRATO DE EVENTOS
-Cada evento debe incluir evento, clienteId y pedidoId enteros positivos,
-y fecha ISO válida. PedidoCreado requiere además total no negativo y una
-lista de productos con productoId, cantidad positiva y precio no negativo.
-Se conservan campos adicionales como pagoId, motivo o numeroFactura.
-El contenido canónico se usa para deduplicar reentregas.
-El guardado durable ocurre antes de confirmar ACK a RabbitMQ.
-Los eventos inválidos o no autorizados se rechazan a la cola de errores.
-InventarioActualizado no es una notificación admitida por la cuenta de H.
+5. SESIONES Y CUENTAS
+Authorization: Bearer <JWT> en API. Panel: cookie HttpOnly/SameSite Strict.
+AUTH_SECURE_COOKIE=false solo para HTTP local; true para HTTPS.
+AUTH_IDLE_SECONDS=1800; AUTH_LIFETIME_SECONDS=28800; no extiende el exp de F.
+Logout de J no es cierre global en todos los microservicios.
+Las contraseñas locales usan scrypt y sal; no hay registro público.
+scripts/manage-access.js bootstrap | rotate <cuenta> | disable <cuenta>.
+Bootstrap no sobreescribe las cuentas existentes ni cambia sus contraseñas.
 
-7. AUTENTICACIÓN DE ENTRADA A NOTIFICACIONES
-JWT_SECRET: clave privada aleatoria de al menos 32 bytes, exclusiva de J.
-Firma HS256, emisor grupo-j.notificaciones, audiencia notificaciones.
-AUTH_IDLE_SECONDS=1800: cierre tras 30 minutos sin actividad válida.
-AUTH_LIFETIME_SECONDS=28800: vencimiento absoluto tras 8 horas.
-Cada sesión tiene identificador aleatorio, revocación y control de inactividad.
-AUTH_SECURE_COOKIE=false solo para localhost HTTP; usar true con HTTPS.
-El panel usa cookie HttpOnly y SameSite=Strict; no guarda JWT en localStorage.
+6. RABBITMQ: CONTROL DISTINTO DE HTTP
+RABBITMQ_URL: URL privada broker/vhost. RABBITMQ_REQUIRE_TLS=true exige AMQPS.
+Se valida certificado TLS. No usar el JWT de usuario como contraseña del broker.
+RABBITMQ_REQUIRE_EVENT_JWT=false por defecto conserva la integración de eventos.
+El administrador del broker debe limitar publicación y consumo por cuenta técnica.
+Una cuenta administradora compartida entre grupos no permite aislar productores.
+J valida exchange, clave y contrato; no lee colas de operaciones de otros servicios.
+JWT técnico por mensaje es opcional, no requisito del docente:
+RABBITMQ_REQUIRE_EVENT_JWT=true activa AUTH_RPC_QUEUE=notificaciones.auth.login
+y exige headers.Authorization="Bearer <JWT técnico de J>" en eventos.
+Coordinar con productores antes de activar; no sustituye el JWT de usuarios de F.
+examples/LOGIN-RABBITMQ.md documenta esta extensión opcional.
 
-POST /api/auth/login con JSON username/password devuelve access_token.
-Reutilizar ese token en Authorization: Bearer <token>.
-POST /api/auth/logout revoca la sesión.
-GET /api/auth/session consulta el acceso al panel sin prolongar la actividad.
-POST /api/eventos recibe un evento autenticado de un módulo autorizado.
-Las rutas GET/PATCH de /api/notificaciones requieren administrador.
+7. FUENTES, CONTRATOS Y PERSISTENCIA
+RABBITMQ_SOURCES:
+pedidos_exchange fanout: PedidoCreado.
+pagos_exchange topic pago.aprobado/pago.rechazado: PagoAprobado/PagoRechazado.
+inventario_exchange fanout: InventarioInsuficiente.
+facturacion_exchange fanout: FacturaGenerada.
+RABBITMQ_QUEUE=grupo-j.notificaciones. DLQ propia .errores y exchange .errores.exchange.
+RABBITMQ_PREFETCH=10; RABBITMQ_RECONNECT_MS=5000; RABBITMQ_HEARTBEAT=30.
+RABBITMQ_MAX_MESSAGE_BYTES=262144.
+evento, clienteId/pedidoId enteros positivos y fecha ISO obligatorios.
+PedidoCreado: total no negativo y productos con productoId/cantidad/precio.
+ACK posterior al guardado durable. JSON/origen inválido: DLQ. Duplicados: no recrear.
+Fallo de base de datos solicita reentrega, no descarte.
+Notificacion conserva datos/lectura; EmailJob conserva reintentos/estado de correo.
 
-Para eventos RabbitMQ, adjuntar a las propiedades del mensaje:
-headers: { authorization: "Bearer <token de Notificaciones>" }
-También se acepta la cabecera AMQP Authorization con mayúscula inicial.
-No colocar contraseñas o el token en el cuerpo del evento.
+8. CONSULTAS A CLIENTES
+CLIENTES_RABBITMQ_URL opcional, usa RABBITMQ_URL si está vacío.
+CLIENTES_RPC_LOGIN_QUEUE=auth.login; JSON {"usuario":"...","password":"..."}.
+Respuesta F actual: status=200 y data.token/data.expira_en_segundos.
+CLIENTES_RPC_USERNAME/PASSWORD: cuenta técnica que F asigna a J, privada.
+CLIENTES_RPC_QUEUE=cliente.consultar; JSON {"id":<clienteId>} con JWT de F.
+Respuesta: status=200, data.id, data.estado=1, data.correo válido.
+CLIENTES_RPC_TIMEOUT_MS=10000; replyTo temporal, correlationId, TTL y mandatory.
+Token cacheado, renueva una vez tras 401; no hay respaldo anónimo.
+Esta conexión de datos no otorga rol administrativo a usuarios.
 
-Cuentas permitidas por defecto:
-administrador: acceso al panel y consultas administrativas.
-pedidos: PedidoCreado.
-pagos: PagoAprobado y PagoRechazado.
-inventario: InventarioInsuficiente.
-facturacion: FacturaGenerada.
-No hay registro público ni cuentas innecesarias para Carro/Productos/Reportes.
+9. SMTP
+EMAIL_ENABLED=true activa trabajos para notificaciones nuevas.
+SMTP_HOST=smtp.gmail.com; SMTP_PORT=587; SMTP_SECURE=false con STARTTLS obligatorio.
+SMTP_USER, SMTP_PASSWORD, SMTP_FROM se configuran en privado.
+EMAIL_INTERVAL_MS=5000; EMAIL_MAX_ATTEMPTS=5; espera creciente.
+Estados: pendiente, aceptado por proveedor, fallido, no programado.
+accepted no confirma entrega ni lectura. No se garantiza envío exactamente una vez.
+El fallo de Clientes/SMTP no elimina la notificación.
 
-Administración local:
-node --env-file=.env.integracion scripts/manage-access.js bootstrap
-node --env-file=.env.integracion scripts/manage-access.js rotate <cuenta>
-node --env-file=.env.integracion scripts/manage-access.js disable <cuenta>
-En Docker ejecutar el mismo script mediante compose exec para utilizar
-la base montada. Entregar a cada grupo solamente su credencial individual.
+10. KUBERNETES
+k8s/: Namespace ecommerce, ConfigMap, PVC, Deployment y Service ClusterIP.
+k8s/templates/secret.example.yaml: plantilla, nunca aplicar sin completar en privado.
+scripts/prepare-k8s-secret.js genera Secret privado desde el entorno.
+Imagen grupo-j-notificaciones:2.0.0. Cargar en Minikube o publicar en registro propio.
+Deployment: una réplica, estrategia Recreate por SQLite y worker único.
+PVC 1Gi conserva datos entre Pods; no borrarlo durante la recuperación.
+Startup/liveness: /health/live; readiness: /health/ready. Puerto 3000.
+Service DNS: notificaciones.ecommerce.svc.cluster.local:3000.
+kubectl -n ecommerce port-forward service/notificaciones 3020:3000
+k8s/lab: modo local, correo apagado, cola grupo-j.notificaciones.laboratorio,
+exchange grupo-j.laboratorio.eventos. No compite con las colas del negocio.
+scripts/verify-k8s.js prueba API/Service, evento real aislado, eliminación y reemplazo
+del Pod de laboratorio y persistencia. No garantiza recuperación de toda operación.
+Ver docs/KUBERNETES.md para comandos y perfil.
 
-8. CONSULTA DE CORREOS A CLIENTES F: NUEVO JWT RPC
-CLIENTES_RABBITMQ_URL permite un broker distinto para Clientes.
-Si está vacío, se utiliza RABBITMQ_URL.
-CLIENTES_RPC_USERNAME y CLIENTES_RPC_PASSWORD son las credenciales
-que el grupo F asigna a J. No son las cuentas que J entrega a otros módulos.
-CLIENTES_RPC_LOGIN_QUEUE=auth.login.
-Solicitud de login: {"usuario":"<cuenta>","password":"<contraseña>"}.
-Respuesta: status=200 y data.token, data.expira_en_segundos.
-CLIENTES_RPC_QUEUE=cliente.consultar.
-Consulta: {"id":<clienteId>} y headers.Authorization="Bearer <token de Clientes>".
-Respuesta esperada: status=200 y data.id, data.estado=1, data.correo válido.
-CLIENTES_RPC_TIMEOUT_MS=10000 por solicitud.
-Se utilizan replyTo, correlationId y una cola temporal exclusiva.
-El token de Clientes se conserva en memoria y se reutiliza hasta vencer.
-Si responde 401, se renueva y reintenta una sola vez; no hay modo anónimo.
-Se detectan colas sin ruta mediante mandatory y devolución del broker.
-La cuenta temporal informada por F se configura solo en el entorno privado;
-debe sustituirse por la asignada al módulo cuando el grupo la entregue.
-Nunca importar a J la clave de firma ni el archivo de usuarios de Clientes.
-
-9. CORREOS SMTP
-EMAIL_ENABLED=true activa los trabajos para nuevas notificaciones.
-SMTP_HOST=smtp.gmail.com; SMTP_PORT=587; SMTP_SECURE=false con STARTTLS
-obligatorio y validación del certificado. Para otro proveedor ajustar esas variables.
-SMTP_USER, SMTP_PASSWORD y SMTP_FROM deben configurarse en privado.
-Gmail utiliza contraseña de aplicación, no contraseña habitual.
-EMAIL_INTERVAL_MS=5000; EMAIL_MAX_ATTEMPTS=5, con espera creciente.
-El fallo de Clientes o SMTP no elimina la notificación guardada.
-La interfaz muestra pendiente, aceptado, fallido o no programado,
-intentos fallidos, motivo y próximo intento cuando corresponde.
-accepted significa aceptación SMTP, no confirmación de lectura o entrega.
-No se garantiza entrega exactamente una vez ante un fallo posterior al envío.
-Ejecutar un solo worker de correo por la base SQLite.
-
-10. COORDINACIÓN NECESARIA SEGÚN EL ZIP NUEVO
-Pagos ya escucha pedidos_exchange y publica en pagos_exchange, tipo topic.
-Facturación todavía enlaza su entrada con clave vacía: debe usar
-pago.aprobado para recibir los pagos del exchange topic.
-Carro solicita a pedidos.desde_carro; Pedidos publica PedidoCreado después.
-J no debe notificar dos veces consumiendo también la solicitud de Carro.
-Clientes no publica UsuarioCreado/ClienteCreado en esta versión.
-Reportes y Productos no son productores de los cinco eventos recibidos por J.
-Los publicadores de E/B/H/K del ZIP todavía no adjuntan el JWT emitido por J.
-Cada grupo debe integrar el login de Notificaciones y adjuntarlo al publicar,
-o enviar el evento a POST /api/eventos. Su JWT propio no sustituye el de J.
-La autenticación de J permanece activa y rechaza los mensajes sin token.
-
-JWT no configura por sí mismo los permisos de conexión a CloudAMQP.
-El administrador del broker debe crear usuarios por servicio con permisos
-mínimos, y reservar la lectura de la cola de J a Notificaciones.
-
-11. COMPROBACIONES Y ENTREGA
-npm test ejecuta las pruebas locales de API, JWT, RPC, persistencia y frontend.
-Las pruebas RPC unitarias usan respuestas controladas, no certifican que
-el worker real de Clientes esté encendido.
-node --env-file=.env.integracion --test tests/integration/rabbit.test.js
-usa recursos temporales aislados en RabbitMQ. Ejecutar solo con autorización.
-GET /health/live comprueba HTTP; GET /health/ready comprueba el consumidor,
-no garantiza la disponibilidad de Clientes ni de SMTP.
-Las pruebas reales completas requieren worker de Clientes activo, credenciales
-vigentes y publicadores que adjunten el JWT correcto de Notificaciones.
-El ZIP entregable contiene código, plantillas, pruebas y este archivo;
-excluye secretos, bases de datos, modelos de audio y artefactos de trabajo.
-
-
-LOGIN DE MÓDULOS MEDIANTE CLOUDAMQP (20 de octubre de 2026)
-Notificaciones atiende AUTH_RPC_QUEUE=notificaciones.auth.login en RABBITMQ_URL.
-Esta cola es distinta de auth.login, que pertenece a Clientes.
-No hace falta una URL HTTP pública para obtener el JWT por esta vía.
-Notificaciones y el módulo solicitante deben estar encendidos y tener acceso
-al mismo broker/vhost. CloudAMQP transporta la solicitud; J emite el token.
-
-Solicitud JSON: {"username":"pedidos","password":"<credencial individual>"}.
-Enviar al exchange por defecto con routing key notificaciones.auth.login,
-replyTo con una cola temporal exclusiva generada por RabbitMQ (amq.gen-...),
-correlationId aleatorio, persistent=false y expiration=15000.
-Respuesta JSON: {"status":200,"data":{"access_token":"<JWT>",
-"token_type":"Bearer","expiresAt":"<ISO>","inactivitySeconds":1800,"role":"module"}}.
-Errores: status 400/401/403/413/429/500 y campo error; no incluyen secretos.
-El administrador continúa usando el panel HTTP; no se admite su login RPC.
-La cola no es durable, tiene TTL de 15 segundos, máximo 100 solicitudes y
-consumo secuencial. No se vincula a la cola de errores de eventos.
-Se mantiene el límite compartido de 10 logins por 15 minutos por transporte
-RabbitMQ, además del límite por cuenta. Reutilizar los tokens para no agotarlo.
-No enviar credenciales continuamente ni publicarlas en exchanges de eventos.
-
-Publicar los eventos habituales con headers.Authorization="Bearer <JWT de J>".
-Conservar el token en memoria; al expirar por inactividad o duración absoluta,
-volver a solicitarlo con las mismas credenciales. No hay que pedirlo a J manualmente.
-RabbitMQ no devuelve al productor el 401 del consumidor de eventos: coordinar
-renovación antes de la expiración y la inactividad, y revisar los rechazos.
-Ejemplo: examples/notificaciones-rpc.js exporta un cliente con login cacheado.
-La cola y JWT no sustituyen los usuarios y permisos del broker: reservar a J
-la lectura de notificaciones.auth.login y de su cola de eventos; los otros
-módulos necesitan publicar login y consumir exclusivamente su cola de respuesta.
-AMQPS cifra el transporte; quien administre el broker puede ver los mensajes.
+11. POSTMAN, VERIFICACIÓN Y ENTREGA
+postman/Notificaciones-Seguridad.postman_collection.json: siete casos obligatorios,
+login correcto, contraseña incorrecta y usuario inexistente.
+postman/Local.postman_environment.json: plantilla sin tokens ni contraseñas reales.
+Para integración usar cuenta real de F, JWT de operador y JWT realmente vencido.
+No entregar a consumidores la clave de firma para fabricar tokens.
+scripts/verify-postman-lab.js ejecuta la colección con emisor controlado simulado.
+Evidencias sin secretos: .artifacts/evidencias. No certifican servicios no probados.
+npm test: pruebas de JWT, APIs, roles, persistencia, RPC y frontend.
+node scripts/check-manifests.js: validación estructural YAML.
+node --env-file=.env.integracion --test tests/integration/*.test.js
+Las pruebas RabbitMQ usan recursos aislados; no disparan pedidos/pagos reales.
+ZIP/Git excluyen .env, datos, credenciales, herramientas y artefactos privados.
+docs/LABORATORIO.md relaciona fases, resultados y dependencias pendientes.

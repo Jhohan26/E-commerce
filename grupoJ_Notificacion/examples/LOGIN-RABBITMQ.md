@@ -1,5 +1,11 @@
 # Conexión a Notificaciones por RabbitMQ
 
+Esta es una extensión técnica opcional. El laboratorio utiliza la autenticación
+de usuarios del Grupo F y mantiene separado el acceso AMQPS al broker.
+Por defecto los productores no necesitan este login ni un JWT de J para eventos.
+La cola de este ejemplo se activa solo con RABBITMQ_REQUIRE_EVENT_JWT=true,
+después de acordarlo con todos los productores. No otorga acceso al panel.
+
 Cada grupo recibe su usuario y contraseña de Notificaciones y acceso AMQPS al
 mismo broker y virtual host. No necesita entrar al panel ni usar Postman.
 Notificaciones debe permanecer ejecutándose para responder al login.

@@ -38,7 +38,7 @@ export class AccessService {
       this.db.exec('COMMIT');
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
-  async login(username, password, address = 'local', { moduleOnly = false } = {}) {
+  limitLogin(username, address = 'local') {
     const now = this.clock();
     const keys = [`ip:${address}`, `user:${username}`];
     for (const key of keys) {
@@ -48,6 +48,10 @@ export class AccessService {
         count=CASE WHEN untilTime<=? THEN 1 ELSE count+1 END,
         untilTime=CASE WHEN untilTime<=? THEN excluded.untilTime ELSE untilTime END`).run(key, now + 900000, now, now);
     }
+  }
+  async login(username, password, address = 'local', { moduleOnly = false } = {}) {
+    this.limitLogin(username, address);
+    const now = this.clock();
     const account = this.db.prepare('SELECT * FROM ModuleAccount WHERE username=?').get(username);
     const candidate = await scrypt(password, account?.salt || 'invalid-account-salt', 64);
     const expected = account ? Buffer.from(account.passwordHash, 'hex') : Buffer.alloc(64);
@@ -58,7 +62,8 @@ export class AccessService {
     const id = randomUUID();
     const expires = now + this.lifetimeSeconds * 1000;
     this.db.prepare('INSERT INTO AccessSession VALUES (?,?,?,?)').run(id, username, now, expires);
-    const token = jwt.sign({ sub: username, jti: id, iat: Math.floor(now / 1000) }, this.secret,
+    const token = jwt.sign({ sub: username, role: account.role === 'admin' ? 'administrador' : 'module',
+      jti: id, iat: Math.floor(now / 1000) }, this.secret,
       { algorithm: 'HS256', issuer, audience, expiresIn: this.lifetimeSeconds });
     return { token, expiresAt: new Date(expires).toISOString(), idleSeconds: this.idleSeconds, role: account.role };
   }
@@ -66,7 +71,8 @@ export class AccessService {
     let payload;
     try { payload = jwt.verify(token, this.secret, { algorithms: ['HS256'], issuer, audience,
       clockTimestamp: Math.floor(this.clock() / 1000) }); } catch { throw new AccessError(); }
-    if (typeof payload.sub !== 'string' || typeof payload.jti !== 'string') throw new AccessError();
+    if (typeof payload.sub !== 'string' || typeof payload.jti !== 'string' ||
+        !Number.isSafeInteger(payload.exp) || !Number.isSafeInteger(payload.iat)) throw new AccessError();
     const session = this.db.prepare(`SELECT s.*,a.role,a.events,a.enabled FROM AccessSession s
       JOIN ModuleAccount a ON a.username=s.username WHERE s.id=? AND s.username=?`).get(payload.jti, payload.sub);
     const now = this.clock();
@@ -74,6 +80,7 @@ export class AccessService {
       if (session) this.db.prepare('DELETE FROM AccessSession WHERE id=?').run(session.id);
       throw new AccessError();
     }
+    if (payload.role !== (session.role === 'admin' ? 'administrador' : 'module')) throw new AccessError();
     if ((admin && session.role !== 'admin') || (event && (session.role !== 'module' || !JSON.parse(session.events).includes(event)))) {
       throw new AccessError('El módulo no tiene permiso para esta operación', 403);
     }

@@ -39,7 +39,10 @@ export function createApp(repository, status = () => false, log = console, { acc
   app.use(express.static(fileURLToPath(new URL('../public/', import.meta.url))));
   app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
   app.use((error, req, res, next) => {
-    if (error instanceof AccessError) return res.status(error.status).json({ error: error.message });
+    if (error instanceof AccessError) {
+      if (error.status === 401) res.set('WWW-Authenticate', 'Bearer');
+      return res.status(error.status).json({ error: error.message });
+    }
     if (error.type === 'entity.parse.failed') return res.status(400).json({ error: 'JSON inválido' });
     if (error.type === 'entity.too.large') return res.status(413).json({ error: 'Mensaje demasiado grande' });
     log.error('api_error'); res.status(500).json({ error: 'Error interno' });

@@ -10,7 +10,8 @@ test('Notificación y correo se guardan juntos, sin duplicados ni reenvío despu
   const repo = new NotificationRepository(':memory:');
   try {
     const service = new NotificationService(repo, true);
-    service.process(event); service.process(event);
+    assert.equal(service.process(event).notification.correo.estado, 'pending');
+    assert.equal(service.process(event).notification.correo.estado, 'pending');
     assert.equal(repo.db.prepare('SELECT COUNT(*) AS n FROM EmailJob').get().n, 1);
     let sends = 0;
     const worker = new EmailWorker(repo, { async getClient(id) { assert.equal(id, 25); return { correo: 'client@example.com' }; } },

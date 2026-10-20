@@ -8,7 +8,7 @@ export function handleDelivery(message, channel, service, log, config = {}) {
   let payload;
   try { payload = JSON.parse(message.content.toString('utf8')); }
   catch { log.error('mensaje_invalido', { motivo: 'JSON inválido' }); channel.nack(message, false, false); return; }
-  if (config.access) {
+  if (config.requireEventJwt) {
     try {
       const header = message.properties?.headers?.authorization ?? message.properties?.headers?.Authorization;
       const token = typeof header === 'string' ? /^Bearer ([^\s]+)$/i.exec(header)?.[1] : null;

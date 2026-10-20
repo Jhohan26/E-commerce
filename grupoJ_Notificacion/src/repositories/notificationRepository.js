@@ -45,9 +45,10 @@ export class NotificationRepository {
       VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(claveEvento) DO NOTHING`).run(
       event.clienteId, event.pedidoId, event.evento, content.titulo, content.mensaje,
       new Date().toISOString(), key, event.fecha);
-    const notification = map(this.db.prepare('SELECT * FROM Notificacion WHERE claveEvento=?').get(key));
+    let notification = map(this.db.prepare('SELECT * FROM Notificacion WHERE claveEvento=?').get(key));
     if (enqueueEmail && result.changes) this.db.prepare(
       'INSERT INTO EmailJob(notificationId,messageId) VALUES (?,?)').run(notification.id, key);
+    notification = this.get(notification.id);
     this.db.exec('COMMIT');
     return { notification, duplicate: result.changes === 0 };
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }

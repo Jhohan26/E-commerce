@@ -4,6 +4,11 @@ function positive(value, fallback, name) {
   return parsed;
 }
 export function loadConfig(env = process.env) {
+  const userAuthMode = env.USER_AUTH_MODE || 'local';
+  if (!['local', 'clientes'].includes(userAuthMode)) throw new Error('USER_AUTH_MODE debe ser local o clientes');
+  if (userAuthMode === 'clientes' && (!env.CLIENTES_JWT_ISSUER || Buffer.byteLength(env.CLIENTES_JWT_SECRET || '') < 32)) {
+    throw new Error('Configura CLIENTES_JWT_ISSUER y CLIENTES_JWT_SECRET para validar tokens de Clientes');
+  }
   const exchangeType = env.RABBITMQ_EXCHANGE_TYPE || 'topic';
   if (!['topic', 'direct', 'fanout'].includes(exchangeType)) throw new Error('Tipo de exchange no admitido');
   let sources;
@@ -36,6 +41,9 @@ export function loadConfig(env = process.env) {
       secureCookie: env.AUTH_SECURE_COOKIE === 'true' },
     rabbitUrl, sources,
     authRpcQueue: env.AUTH_RPC_QUEUE || 'notificaciones.auth.login',
+    requireEventJwt: env.RABBITMQ_REQUIRE_EVENT_JWT === 'true',
+    userAuth: { mode: userAuthMode, secret: env.CLIENTES_JWT_SECRET || '', issuer: env.CLIENTES_JWT_ISSUER || '',
+      audience: env.CLIENTES_JWT_AUDIENCE || '' },
     clientRpc: {
       rabbitUrl: clientRabbitUrl, username: env.CLIENTES_RPC_USERNAME || '', password: env.CLIENTES_RPC_PASSWORD || '',
       loginQueue: env.CLIENTES_RPC_LOGIN_QUEUE || 'auth.login', queryQueue: env.CLIENTES_RPC_QUEUE || 'cliente.consultar'

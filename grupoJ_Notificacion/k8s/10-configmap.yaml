@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notificaciones-config
+  namespace: ecommerce
+data:
+  PORT: "3000"
+  DATABASE_PATH: /app/data/notificaciones.sqlite
+  USER_AUTH_MODE: clientes
+  AUTH_IDLE_SECONDS: "1800"
+  AUTH_LIFETIME_SECONDS: "28800"
+  AUTH_SECURE_COOKIE: "false"
+  RABBITMQ_REQUIRE_TLS: "true"
+  RABBITMQ_REQUIRE_EVENT_JWT: "false"
+  RABBITMQ_QUEUE: grupo-j.notificaciones
+  RABBITMQ_PREFETCH: "10"
+  RABBITMQ_RECONNECT_MS: "5000"
+  RABBITMQ_HEARTBEAT: "30"
+  RABBITMQ_SOURCES: '[{"exchange":"pedidos_exchange","type":"fanout","keys":[""],"events":["PedidoCreado"]},{"exchange":"pagos_exchange","type":"topic","keys":["pago.aprobado","pago.rechazado"],"events":["PagoAprobado","PagoRechazado"]},{"exchange":"inventario_exchange","type":"fanout","keys":[""],"events":["InventarioInsuficiente"]},{"exchange":"facturacion_exchange","type":"fanout","keys":[""],"events":["FacturaGenerada"]}]'
+  CLIENTES_RPC_LOGIN_QUEUE: auth.login
+  CLIENTES_RPC_QUEUE: cliente.consultar
+  CLIENTES_RPC_TIMEOUT_MS: "10000"
+  EMAIL_ENABLED: "false"
+  SMTP_HOST: smtp.gmail.com
+  SMTP_PORT: "587"
+  SMTP_SECURE: "false"

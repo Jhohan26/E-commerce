@@ -123,7 +123,7 @@ $('#access-form').addEventListener('submit', async event => {
     const result = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: $('#access-user').value.trim(), password: $('#access-password').value }) });
     $('#access-password').value = '';
-    if (result.role !== 'admin') throw new Error('Esta cuenta de módulo no tiene acceso al panel.');
+    if (!['admin', 'administrador'].includes(result.role)) throw new Error('Esta cuenta no tiene acceso al panel administrativo.');
     await enter();
   } catch (error) { $('#access-error').textContent = error.message; }
   finally { button.disabled = false; }
@@ -133,10 +133,9 @@ $('#access-logout').addEventListener('click', async () => {
   catch (error) { notice(error.message); }
 });
 fetch('/api/auth/session', { cache: 'no-store' }).then(response => response.ok ? enter() : showLogin()).catch(showLogin);
-// Mantiene la bandeja actualizada mientras el panel está visible.
 setInterval(() => {
-  if (document.visibilityState === 'visible') void load();
+  if (document.visibilityState === 'visible' && !document.querySelector('main').hidden) void load();
 }, 3000);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') void load();
+  if (document.visibilityState === 'visible' && !document.querySelector('main').hidden) void load();
 });

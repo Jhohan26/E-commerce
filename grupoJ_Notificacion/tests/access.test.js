@@ -28,6 +28,10 @@ test('Token reutilizable, firma y permisos, caducidad por inactividad y duració
     assert.throws(() => f.access.authenticate(token, { admin: true }), e => e.status === 403);
     const forged = jwt.sign({ sub: 'pagos', jti: 'fake' }, 'otra-clave', { algorithm: 'HS256' });
     assert.throws(() => f.access.authenticate(forged));
+    const claims = jwt.decode(token);
+    const { exp, ...withoutExpiry } = claims;
+    assert.throws(() => f.access.authenticate(jwt.sign(withoutExpiry, f.secret)));
+    assert.throws(() => f.access.authenticate(jwt.sign({ ...claims, role: 'administrador' }, f.secret)));
     f.advance(59000); f.access.authenticate(token);
     f.advance(59000); f.access.authenticate(token);
     f.advance(61000); assert.throws(() => f.access.authenticate(token), /Sesión/);
@@ -82,13 +86,13 @@ test('RabbitMQ rechaza mensajes sin JWT y permite solo los eventos de la cuenta'
       let outcome;
       handleDelivery({ content: Buffer.from(JSON.stringify(event)), properties: { headers: { authorization } } },
         { ack() { outcome = 'ack'; }, nack() { outcome = 'nack'; } },
-        { process() { return { notification: { id: 1 }, duplicate: false }; } }, { info() {}, error() {} }, { access: f.access });
+        { process() { return { notification: { id: 1 }, duplicate: false }; } }, { info() {}, error() {} }, { access: f.access, requireEventJwt: true });
       assert.equal(outcome, expected);
     }
     let accepted = false;
     handleDelivery({ content: Buffer.from(JSON.stringify(event)), properties: { headers: { Authorization: `Bearer ${token}` } } },
       { ack() { accepted = true; }, nack() { assert.fail('Cabecera Authorization válida'); } },
-      { process() { return { notification: { id: 1 }, duplicate: false }; } }, { info() {}, error() {} }, { access: f.access });
+      { process() { return { notification: { id: 1 }, duplicate: false }; } }, { info() {}, error() {} }, { access: f.access, requireEventJwt: true });
     assert.equal(accepted, true);
   } finally { f.repo.close(); }
 });

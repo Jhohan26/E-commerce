@@ -67,7 +67,8 @@ test('RabbitMQ real valida JWT: rechaza anónimo y acepta módulo autorizado', {
   await access.provision('pagos', password, 'module', ['PagoAprobado']);
   const { token } = await access.login('pagos', password);
   const config = { ...loadConfig(), sources: undefined, exchange: `test.jwt.${suffix}`,
-    queue: `test.jwt.${suffix}`, bindings: ['PagoAprobado'], access, reconnectMs: 200 };
+    queue: `test.jwt.${suffix}`, bindings: ['PagoAprobado'], access, requireEventJwt: true,
+    authRpcQueue: `test.jwt.login.${suffix}`, reconnectMs: 200 };
   const consumer = new RabbitConsumer(config, new NotificationService(repo), log);
   let conn, channel;
   try {
@@ -87,6 +88,7 @@ test('RabbitMQ real valida JWT: rechaza anónimo y acepta módulo autorizado', {
   } finally {
     await consumer.stop();
     if (channel) {
+      await channel.deleteQueue(config.authRpcQueue);
       await channel.deleteQueue(config.queue); await channel.deleteQueue(`${config.queue}.errores`);
       await channel.deleteExchange(config.exchange); await channel.deleteExchange(`${config.queue}.errores.exchange`);
       await channel.close();
