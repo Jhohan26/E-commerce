@@ -6,6 +6,7 @@ const dateFormat = new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeS
 async function request(path, options) {
   const response = await fetch(path, { cache: 'no-store', ...options });
   if (!response.ok) {
+    if (response.status === 401) showLogin();
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error || 'No se pudo completar la solicitud. Intenta nuevamente.');
   }
@@ -37,6 +38,11 @@ function render() {
     const labels = { pending: 'Correo pendiente', accepted: 'Correo aceptado por el proveedor',
       failed: 'Correo fallido', not_scheduled: 'Correo no programado' };
     const reasons = { CLIENT_RPC_TIMEOUT: 'Clientes no respondió', CLIENT_RECIPIENT_INVALID: 'Cliente o correo no válido',
+      CLIENT_AUTH_NOT_CONFIGURED: 'Faltan credenciales de acceso a Clientes', CLIENT_AUTH_REJECTED: 'Clientes rechazó la autenticación',
+      CLIENT_NOT_FOUND: 'Cliente no encontrado', CLIENT_INACTIVE: 'Cliente inactivo', CLIENT_EMAIL_INVALID: 'Correo del cliente no válido',
+      CLIENT_RESPONSE_INVALID: 'Respuesta de Clientes incompatible', CLIENT_RESPONSE_TOO_LARGE: 'Respuesta de Clientes demasiado grande',
+      CLIENT_RPC_NO_ROUTE: 'Cola de Clientes no disponible', CLIENT_RPC_CLOSED: 'Conexión a Clientes interrumpida',
+      CLIENT_RPC_UNAVAILABLE: 'No se pudo conectar a Clientes',
       SMTP_RECIPIENT_REJECTED: 'Destinatario rechazado', EMAIL_DELIVERY_FAILED: 'Error de conexión o envío' };
     email.dataset.state = correo.estado;
     email.textContent = labels[correo.estado] || 'Estado de correo desconocido';
@@ -100,4 +106,37 @@ $('#event').addEventListener('change', render);
 $('#state').addEventListener('change', render);
 $('#previous').addEventListener('click', () => void load(Math.max(0, offset - pageSize)));
 $('#next').addEventListener('click', () => void load(offset + pageSize));
-void load();
+function showLogin() {
+  rows = []; $('#list').replaceChildren();
+  document.querySelector('main').hidden = true;
+  $('#access-panel').hidden = false;
+}
+async function enter() {
+  $('#access-panel').hidden = true;
+  document.querySelector('main').hidden = false;
+  await load();
+}
+$('#access-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = $('#access-form button'); button.disabled = true; $('#access-error').textContent = '';
+  try {
+    const result = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: $('#access-user').value.trim(), password: $('#access-password').value }) });
+    $('#access-password').value = '';
+    if (result.role !== 'admin') throw new Error('Esta cuenta de módulo no tiene acceso al panel.');
+    await enter();
+  } catch (error) { $('#access-error').textContent = error.message; }
+  finally { button.disabled = false; }
+});
+$('#access-logout').addEventListener('click', async () => {
+  try { await request('/api/auth/logout', { method: 'POST' }); showLogin(); }
+  catch (error) { notice(error.message); }
+});
+fetch('/api/auth/session', { cache: 'no-store' }).then(response => response.ok ? enter() : showLogin()).catch(showLogin);
+// Mantiene la bandeja actualizada mientras el panel está visible.
+setInterval(() => {
+  if (document.visibilityState === 'visible') void load();
+}, 3000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void load();
+});

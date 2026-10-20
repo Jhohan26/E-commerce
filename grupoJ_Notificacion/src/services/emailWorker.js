@@ -32,7 +32,10 @@ export class EmailWorker {
       this.repository.emailAccepted(job.notificationId);
       this.log.info('correo_aceptado', { id: job.notificationId });
     } catch (error) {
-      const reason = ['CLIENT_RPC_TIMEOUT', 'CLIENT_RECIPIENT_INVALID', 'SMTP_RECIPIENT_REJECTED'].includes(error.message)
+      const reason = ['CLIENT_RPC_TIMEOUT', 'CLIENT_RECIPIENT_INVALID', 'SMTP_RECIPIENT_REJECTED',
+        'CLIENT_AUTH_NOT_CONFIGURED', 'CLIENT_AUTH_REJECTED', 'CLIENT_NOT_FOUND', 'CLIENT_INACTIVE',
+        'CLIENT_EMAIL_INVALID', 'CLIENT_RESPONSE_INVALID', 'CLIENT_RESPONSE_TOO_LARGE',
+        'CLIENT_RPC_NO_ROUTE', 'CLIENT_RPC_CLOSED', 'CLIENT_RPC_UNAVAILABLE'].includes(error.message)
         ? error.message : 'EMAIL_DELIVERY_FAILED';
       this.repository.emailFailed(job.notificationId, job.attempts + 1, this.config.email.maxAttempts, reason);
       this.log.error('correo_pendiente_o_fallido', { id: job.notificationId, intento: job.attempts + 1, motivo: reason });
