@@ -13,7 +13,7 @@ RUN pip install -r requirements.txt
 
 # Solo el código de la aplicación. NO se copia .env ni secretos (ver .dockerignore):
 # la configuración llega por variables de entorno en tiempo de ejecución.
-COPY main.py api.py auth.py rabbit.py productos.py ./
+COPY main.py api.py auth.py rabbit.py productos.py cliente_rpc.py ./
 COPY templates ./templates
 
 # Usuario sin privilegios. /app debe ser escribible porque productos.py guarda

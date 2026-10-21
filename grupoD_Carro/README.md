@@ -22,6 +22,7 @@ Edita `.env` y completa:
 | Variable | Qué poner |
 | --- | --- |
 | `CLOUDAMQP_URL` | URL del broker. **Debe ser la misma instancia que usan los demás grupos.** |
+| `PRODUCTOS_USUARIO` / `PRODUCTOS_PASSWORD` | Usuario de servicio del carrito ante `productos.login` (JWT de Productos, vía `cliente_rpc.py`). |
 | `API_USUARIO` / `API_PASSWORD` | Usuario de servicio del carrito ante `auth.login` (lo crea el Grupo F). |
 | `JWT_SECRET` | Clave compartida con la que el Grupo F firma los JWT. |
 | `PEDIDOS_USAR_JWT` | `true` envía el JWT de servicio a Pedidos. `false` es un interruptor de emergencia. |
@@ -100,7 +101,7 @@ Con Docker Desktop no hace falta cargar la imagen: ya la ve.
 
 ```
 kubectl apply -f k8s/namespace.yaml
-kubectl create secret generic carrito-secret -n ecommerce --from-literal=CLOUDAMQP_URL="amqps://..." --from-literal=API_USUARIO="modulo_carro" --from-literal=API_PASSWORD="..." --from-literal=JWT_SECRET="..."
+kubectl create secret generic carrito-secret -n ecommerce --from-literal=CLOUDAMQP_URL="amqps://..." --from-literal=API_USUARIO="modulo_carro" --from-literal=API_PASSWORD="..." --from-literal=PRODUCTOS_USUARIO="productos" --from-literal=PRODUCTOS_PASSWORD="..." --from-literal=JWT_SECRET="..."
 kubectl get secret -n ecommerce
 ```
 (El Secret se crea por comando a propósito: así ningún archivo del repositorio contiene credenciales.)
@@ -142,7 +143,7 @@ Los carritos en curso se pierden porque viven en memoria; un pedido ya enviado a
 
 ```
 kubectl delete secret carrito-secret -n ecommerce
-kubectl create secret generic carrito-secret -n ecommerce --from-literal=CLOUDAMQP_URL="..." --from-literal=API_USUARIO="..." --from-literal=API_PASSWORD="..." --from-literal=JWT_SECRET="..."
+kubectl create secret generic carrito-secret -n ecommerce --from-literal=CLOUDAMQP_URL="..." --from-literal=API_USUARIO="..." --from-literal=API_PASSWORD="..." --from-literal=PRODUCTOS_USUARIO="productos" --from-literal=PRODUCTOS_PASSWORD="..." --from-literal=JWT_SECRET="..."
 kubectl rollout restart deployment/carrito -n ecommerce
 ```
 
@@ -216,7 +217,8 @@ Forma de la respuesta que el carrito entiende:
 | --- | --- | --- | --- | --- | --- |
 | `auth.login` | Grupo F | `{"usuario","password"}` | `status 200` y `data: {"token", "expira_en_segundos"}` | – | 10 s |
 | `cliente.consultar` | Clientes | `{"id": 3}` | `200` con `data: {id, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, correo, estado}` · `404` si no existe · `401` si el token no sirve | Bearer | 10 s |
-| `productos.listar` | Productos | cuerpo vacío | `200` con `data: [{id, nombre, precio, imagen_url, descripcion, categoria_id, categoria}]` | No | 4 s |
+| `productos.login` | Productos | `{usuario, password}` | `200` con `data.token` (JWT) | — | 4 s |
+| `productos.listar` | Productos | cuerpo vacío | `200` con `data: [{id, nombre, precio, imagen_url, descripcion, categoria_id, categoria}]` | **Sí** (`Authorization: Bearer`, vía `cliente_rpc.py`) | 4 s |
 | `pedidos.desde_carro` | Pedidos | ver abajo | `200/201` con `data: {pedidoId, clienteId, fecha, total}` | Bearer | 15 s |
 
 Cuerpo que recibe Pedidos en `pedidos.desde_carro`:
@@ -277,7 +279,7 @@ Si usan otros nombres, se cambian con variables de entorno sin tocar código: `J
 - [ ] Devolver `404` para clientes inexistentes y el campo `estado` (el carrito no deja comprar si `estado == 0`).
 
 **Grupo de Productos**
-- [ ] Mantener la cola `productos.listar` (sin autenticación). El carrito refresca el catálogo cada 5 s y, si Productos está apagado, usa el último catálogo conocido.
+- [ ] Mantener `productos.login` y la cola `productos.listar` (ahora con JWT; el carrito se autentica con `PRODUCTOS_USUARIO`/`PRODUCTOS_PASSWORD` usando `cliente_rpc.py`). El carrito refresca el catálogo cada 5 s y, si Productos está apagado, usa el último catálogo conocido.
 
 **Notificaciones, Facturación, Inventario, Pagos, Reportes**
 - [ ] Consumir `PedidoCreado` desde `pedidos_exchange` / `pedido.creado`. **No dependen del carrito**: no hay que llamarlo.
