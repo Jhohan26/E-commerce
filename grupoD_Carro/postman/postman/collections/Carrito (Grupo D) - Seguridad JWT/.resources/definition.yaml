@@ -1,0 +1,12 @@
+$kind: collection
+description: Fase 4 del laboratorio Semana 9. 1) Define JWT_SECRET en el carrito. 2) python scripts/generar_tokens.py --postman (o pega los tokens reales del módulo de autenticación). 3) Importa esta colección y el environment generado. 4) Ejecuta la colección con el Runner. Las carpetas 1 a 7 no necesitan RabbitMQ; la 8 sí (Pedidos y Clientes encendidos).
+variables:
+  base_url: http://localhost:8000
+  cliente_id: "3"
+  otro_cliente_id: "4"
+  token_basura: esto-no-es-un-jwt
+  token_cliente: ""
+  token_operador: ""
+  token_administrador: ""
+  token_vencido: ""
+  token_alterado: ""

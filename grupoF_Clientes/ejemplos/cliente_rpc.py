@@ -1,15 +1,12 @@
 import argparse
 import json
-import os
 import time
 import uuid
 
 import pika
-from dotenv import load_dotenv
 
-load_dotenv()
 
-CLOUDAMQP_URL = os.environ["CLOUDAMQP_URL"]
+CLOUDAMQP_URL = "amqps://yychnpmp:GhdH4NfHUJq2kXLFvFCYNqbxV0w8OUcz@campbell.lmq.cloudamqp.com/yychnpmp"
 COLA_LOGIN = "auth.login"
 
 
@@ -76,7 +73,6 @@ class ClienteRPC:
 
 		for intento in range(2):
 			resp = self._enviar(cola, payload, {"Authorization": f"Bearer {self.token}"}, timeout)
-			# Si el token expiró, se renueva una sola vez y se reintenta
 			if resp["status"] == 401 and intento == 0:
 				self.login(timeout)
 				continue
@@ -90,12 +86,12 @@ class ClienteRPC:
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Cliente RPC con autenticación JWT")
 	parser.add_argument("id", nargs="?", type=int, help="ID del cliente (si se omite, lista todos)")
-	parser.add_argument("-u", "--usuario", default=os.environ.get("API_USUARIO"))
-	parser.add_argument("-p", "--password", default=os.environ.get("API_PASSWORD"))
+	parser.add_argument("-u", "--usuario")
+	parser.add_argument("-p", "--password")
 	args = parser.parse_args()
 
 	if not args.usuario or not args.password:
-		parser.error("Indica usuario y contraseña con -u/-p o con API_USUARIO/API_PASSWORD en el .env")
+		parser.error("Indica usuario y contraseña con -u/-p")
 
 	rpc = ClienteRPC(args.usuario, args.password)
 	try:

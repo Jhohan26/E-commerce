@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-20T23:15:06.750Z",
+  "context": "notificaciones-lab",
+  "namespace": "ecommerce",
+  "scope": "Kubernetes real, Service DNS, RabbitMQ real aislado, SQLite PVC; autenticación local de laboratorio, no F real",
+  "oldPod": "notificaciones-74c7859db4-nt7gl",
+  "oldUid": "3b9eb1b4-51ab-4112-903b-b2c3b2031f10",
+  "newPod": "notificaciones-74c7859db4-spt8v",
+  "newUid": "4065865b-faf6-4ae7-8dfa-beb42e828336",
+  "before": {
+    "live": 200,
+    "ready": 200,
+    "protected": 401
+  },
+  "after": {
+    "live": 200,
+    "ready": 200,
+    "protected": 401
+  },
+  "authBefore": {
+    "login": 200,
+    "query": 200,
+    "id": 2
+  },
+  "authAfter": {
+    "login": 200,
+    "query": 200,
+    "id": 2
+  },
+  "notificationPersisted": true
+}

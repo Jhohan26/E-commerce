@@ -1,0 +1,12 @@
+$kind: http-request
+name: Rol modificado en el payload sin re-firmar -> 401
+description: Mismo token del cliente con rol=administrador, sin volver a firmar.
+url: "{{base_url}}/api/carrito/{{cliente_id}}"
+method: GET
+headers:
+  Authorization: Bearer {{token_alterado}}
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });"
+    language: text/javascript
+order: 1000

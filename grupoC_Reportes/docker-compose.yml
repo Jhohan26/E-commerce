@@ -1,0 +1,21 @@
+services:
+  reportes:
+    build: .
+    image: reportes:latest
+    container_name: reportes
+    ports:
+      - "8001:8001"
+    # Mismas variables que al correrlo sin Docker (AMQP_URL, cuentas JWT, etc.)
+    env_file: .env
+    environment:
+      # Dentro del contenedor "localhost" es el propio contenedor: host.docker.internal es tu computador.
+      # Si Pedidos corre en otro equipo, pon aquí su IP (p. ej. http://192.168.1.30:3000).
+      PEDIDOS_URL: http://host.docker.internal:3000
+      # Hora de Colombia en el dashboard (si no, el contenedor usa UTC)
+      TZ: America/Bogota
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # El respaldo de pedidos y pagos sobrevive aunque se borre el contenedor
+    volumes:
+      - ./datos:/app/datos
+    restart: unless-stopped

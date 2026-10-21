@@ -15,8 +15,10 @@ clientes: dict[int, dict] = {}
 pedidos: dict[int, dict] = {}
 productos: dict[int, dict] = {}          # catálogo que entrega la API de Productos
 inventario: dict[int, dict] = {}         # existencias que entrega la API de Inventario
+facturas: dict[int, dict] = {}           # facturas que anuncia Facturación (evento FacturaGenerada)
 STOCK_BAJO = int(os.getenv("STOCK_BAJO", "10"))   # mismo criterio que Inventario: por debajo = stock bajo
 _pagos_sin_pedido: dict[int, str] = {}   # pago que llegó antes que su pedido
+_sin_stock_sin_pedido: set[int] = set()  # aviso de falta de stock que llegó antes que su pedido
 
 # Respaldo en disco de los pedidos y pagos recibidos por RabbitMQ (no es una base de datos: es una copia de lo
 # recibido, para no perderlo si la API se reinicia). Se apaga con RESPALDO=0 en el .env.
@@ -30,7 +32,9 @@ def _guardar_respaldo():
 	try:
 		os.makedirs(os.path.dirname(_RUTA), exist_ok=True)
 		with open(_RUTA + ".tmp", "w", encoding="utf-8") as f:
-			json.dump({"pedidos": list(pedidos.values()), "pagos_sin_pedido": _pagos_sin_pedido}, f, ensure_ascii=False)
+			json.dump({"pedidos": list(pedidos.values()), "pagos_sin_pedido": _pagos_sin_pedido,
+					   "sin_stock_sin_pedido": sorted(_sin_stock_sin_pedido),
+					   "facturas": list(facturas.values())}, f, ensure_ascii=False)
 		os.replace(_RUTA + ".tmp", _RUTA)
 	except OSError:
 		pass
@@ -45,6 +49,9 @@ def _cargar_respaldo():
 		for p in d.get("pedidos", []):
 			pedidos[int(p["pedido_id"])] = p
 		_pagos_sin_pedido.update({int(k): v for k, v in d.get("pagos_sin_pedido", {}).items()})
+		_sin_stock_sin_pedido.update(int(x) for x in d.get("sin_stock_sin_pedido", []))
+		for f in d.get("facturas", []):
+			facturas[int(f["factura_id"])] = f
 	except (OSError, ValueError, KeyError, TypeError):
 		pass
 
@@ -53,9 +60,15 @@ _cargar_respaldo()
 al_cambiar = lambda: None                # lo reemplaza main.py (avisa al navegador)
 
 # Pedidos guarda su propio estado; Reportes lo traduce a estado de pago.
-# PAGADO/ENVIADO/COMPLETADO implican pago aprobado; CANCELADO se cuenta como rechazado.
+# PAGADO/ENVIADO/COMPLETADO implican pago aprobado. CANCELADO queda como CANCELADO: Pedidos cancela tanto por
+# pago rechazado como por inventario insuficiente, y solo el evento de Pagos (PagoRechazado) confirma lo primero.
 ESTADO_PAGO = {"PAGADO": "APROBADO", "ENVIADO": "APROBADO",
-			   "COMPLETADO": "APROBADO", "CANCELADO": "RECHAZADO"}
+			   "COMPLETADO": "APROBADO", "CANCELADO": "CANCELADO"}
+
+
+def _vendido(p: dict) -> bool:
+	"""Una venta cuenta cuando el pago está aprobado y el pedido no se canceló por falta de stock."""
+	return p["estado_pago"] == "APROBADO" and not p.get("sin_stock")
 
 
 # ---------- escritura ----------
@@ -111,6 +124,21 @@ def reemplazar_inventario(lista: list) -> None:
 		al_cambiar()
 
 
+def registrar_factura(d: dict) -> bool:
+	"""Evento FacturaGenerada. Facturación avisa que puede llegar repetido: un facturaId ya registrado no cambia nada."""
+	fid = int(d["facturaId"])
+	nueva = dict(factura_id=fid, numero=d.get("numeroFactura"), pedido_id=int(d["pedidoId"]),
+				 cliente_id=d.get("clienteId"), total=float(d.get("total") or 0), fecha=str(d.get("fecha") or ""))
+	with _lock:
+		cambio = facturas.get(fid) != nueva
+		facturas[fid] = nueva
+		if cambio:
+			_guardar_respaldo()
+	if cambio:
+		al_cambiar()
+	return cambio
+
+
 def guardar_pedido(p: dict, estado_pedido: str | None = None) -> bool:
 	"""p: pedidoId/clienteId/fecha/total/productos (formato del evento PedidoCreado).
 	estado_pedido: el estado de Pedidos por REST; si el pago ya llegó por evento, no se pisa."""
@@ -119,12 +147,14 @@ def guardar_pedido(p: dict, estado_pedido: str | None = None) -> bool:
 		previo = pedidos.get(pid)
 		estado_pago = ESTADO_PAGO.get(str(estado_pedido or "").upper(), "PENDIENTE")
 		pago_evento = False
+		sin_stock = bool(previo and previo.get("sin_stock")) or pid in _sin_stock_sin_pedido
+		_sin_stock_sin_pedido.discard(pid)
 		if previo and previo.get("pago_evento"):
 			estado_pago, pago_evento = previo["estado_pago"], True
 		elif pid in _pagos_sin_pedido:
 			estado_pago, pago_evento = _pagos_sin_pedido.pop(pid), True
 		nuevo = dict(pedido_id=pid, cliente_id=p["clienteId"], fecha=str(p["fecha"]),
-					 total=float(p.get("total") or 0), estado_pago=estado_pago, pago_evento=pago_evento,
+					 total=float(p.get("total") or 0), estado_pago=estado_pago, pago_evento=pago_evento, sin_stock=sin_stock,
 					 productos=[dict(producto_id=x["productoId"], cantidad=x["cantidad"],
 									 precio=float(x["precio"])) for x in p.get("productos", [])])
 		cambio = previo != nuevo
@@ -151,6 +181,21 @@ def registrar_pago(pedido_id: int, aprobado: bool) -> None:
 		al_cambiar()
 
 
+def registrar_sin_stock(pedido_id: int) -> None:
+	"""Evento InventarioInsuficiente: Pedidos cancela el pedido por falta de existencias."""
+	with _lock:
+		p = pedidos.get(pedido_id)
+		if p:
+			cambio = not p.get("sin_stock")
+			p["sin_stock"] = True
+		else:
+			_sin_stock_sin_pedido.add(pedido_id)
+			cambio = False
+		_guardar_respaldo()
+	if cambio:
+		al_cambiar()
+
+
 # ---------- lectura / reportes ----------
 def _pedidos():
 	with _lock:
@@ -166,9 +211,12 @@ def resumen() -> dict:
 	return dict(
 		total_pedidos=len(ps),
 		clientes_con_compras=len(por_cliente),
-		ventas_aprobadas=sum(p["total"] for p in ps if p["estado_pago"] == "APROBADO"),
+		ventas_aprobadas=sum(p["total"] for p in ps if _vendido(p)),
+		sin_stock=sum(1 for p in ps if p.get("sin_stock")),
 		mejores_clientes=[dict(cliente_id=c, total_comprado=t) for c, t in top],
 		total_clientes=len(clientes),
+		facturas=len(facturas),
+		total_facturado=sum(f["total"] for f in facturas.values()),
 	)
 
 
@@ -177,7 +225,7 @@ def ventas_por_dia() -> list:
 	for p in _pedidos():
 		d = dias[p["fecha"][:10]]
 		d[0] += 1
-		if p["estado_pago"] == "APROBADO":
+		if _vendido(p):
 			d[1] += p["total"]
 	return [dict(dia=d, pedidos=v[0], ventas=v[1]) for d, v in sorted(dias.items())]
 
@@ -206,8 +254,9 @@ def pedidos_recientes(n: int = 8) -> list:
 	ps = sorted(_pedidos(), key=lambda p: p["fecha"], reverse=True)[:n]
 	with _lock:
 		nombres = {i: c["nombre_completo"] for i, c in clientes.items()}
+		factura_de = {f["pedido_id"]: f["numero"] or ("#" + str(f["factura_id"])) for f in facturas.values()}
 	return [dict(pedido_id=p["pedido_id"], cliente_id=p["cliente_id"], cliente=nombres.get(p["cliente_id"]),
-				 fecha=p["fecha"], total=p["total"], estado_pago=p["estado_pago"],
+				 fecha=p["fecha"], total=p["total"], estado_pago=p["estado_pago"], sin_stock=bool(p.get("sin_stock")), factura=factura_de.get(p["pedido_id"]),
 				 unidades=sum(x["cantidad"] for x in p["productos"])) for p in ps]
 
 
@@ -249,12 +298,14 @@ def reporte_cliente(cliente_id: int) -> dict | None:
 		resumen=dict(
 			total_pedidos=len(ps),
 			total_comprado=sum(p["total"] for p in ps),
-			total_pagado=sum(p["total"] for p in ps if p["estado_pago"] == "APROBADO"),
+			total_pagado=sum(p["total"] for p in ps if _vendido(p)),
 			ticket_promedio=(sum(p["total"] for p in ps) / len(ps)) if ps else 0,
 			pagos_aprobados=cuenta("APROBADO"), pagos_rechazados=cuenta("RECHAZADO"),
-			pagos_pendientes=cuenta("PENDIENTE"),
+			pagos_pendientes=cuenta("PENDIENTE"), pagos_cancelados=cuenta("CANCELADO"),
+			sin_stock=sum(1 for p in ps if p.get("sin_stock")),
 			ultimo_pedido=ps[0]["fecha"] if ps else None),
 		top_productos=[dict(producto_id=i, unidades=u, nombre=productos.get(i, {}).get("nombre"))
 					   for i, u in sorted(unidades.items(), key=lambda x: -x[1])[:5]],
-		ultimos_pedidos=[{k: p[k] for k in ("pedido_id", "fecha", "total", "estado_pago")} for p in ps[:10]],
+		ultimos_pedidos=[dict({k: p[k] for k in ("pedido_id", "fecha", "total", "estado_pago")}, sin_stock=bool(p.get("sin_stock")))
+						  for p in ps[:10]],
 	)

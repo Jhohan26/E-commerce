@@ -1,0 +1,11 @@
+$kind: http-request
+name: Cliente consulta el carrito de OTRO cliente -> 403
+url: "{{base_url}}/api/carrito/{{otro_cliente_id}}"
+method: GET
+headers:
+  Authorization: Bearer {{token_cliente}}
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 403', function () { pm.expect(pm.response.code).to.be.oneOf([403]); });"
+    language: text/javascript
+order: 3000

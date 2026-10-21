@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-20T23:11:48.031Z",
+  "scope": "API real de J con emisor F simulado; no certifica al servicio F ni RabbitMQ",
+  "requests": 10,
+  "assertions": 10,
+  "failures": [],
+  "results": [
+    {
+      "name": "01 Público sin token",
+      "status": 200
+    },
+    {
+      "name": "02 Protegido sin token",
+      "status": 401
+    },
+    {
+      "name": "03 Login correcto",
+      "status": 200
+    },
+    {
+      "name": "04 Protegido con token válido",
+      "status": 200
+    },
+    {
+      "name": "05 Token alterado",
+      "status": 401
+    },
+    {
+      "name": "06 Token vencido",
+      "status": 401
+    },
+    {
+      "name": "07 Rol no autorizado",
+      "status": 403
+    },
+    {
+      "name": "08 Rol administrador autorizado",
+      "status": 200
+    },
+    {
+      "name": "09 Contraseña incorrecta",
+      "status": 401
+    },
+    {
+      "name": "10 Usuario inexistente",
+      "status": 401
+    }
+  ]
+}

@@ -22,7 +22,7 @@ COLA_LOGIN = "auth.login"
 COLA_CLIENTE = "cliente.consultar"
 COLA_CLIENTES = "clientes.listar"
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "es_un_secreto_de_tu_mirada_y_la_mia,_un_presentimiento,_como_un_ángel_que_me_decia")
+JWT_SECRET = os.environ.get("JWT_SECRET", "es_un_secreto_de_tu_mirada_y_la_mia,_un_presentimiento,_como_un_angel_que_me_decia")
 JWT_ALGORITMO = "HS256"
 JWT_EXPIRA_MINUTOS = int(os.environ.get("JWT_EXPIRA_MINUTOS", "30"))
 ARCHIVO_USUARIOS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "usuarios.json")

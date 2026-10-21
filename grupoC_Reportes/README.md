@@ -16,18 +16,49 @@ Abrir **http://127.0.0.1:8001/**. Variables en `.env` (ver `.env.example`): `AMQ
 - Ya no existe `consumer.py`: el consumidor de RabbitMQ corre dentro de la propia API. Si queda otro consumidor viejo abierto, se repartirían los mensajes: cerrarlo.
 - **Respaldo:** los pedidos y pagos recibidos por RabbitMQ se copian en `datos/respaldo.json` (no es una base de datos; no se sube a git) para no perderlos si la API se reinicia, ya que RabbitMQ los entrega una sola vez. Se apaga con `RESPALDO=0`.
 
+## Ejecutar con Docker
+
+Requiere Docker Desktop encendido y el `.env` configurado (el `.env` no se copia a la imagen: se pasa al ejecutar).
+
+    cd grupoC_Reportes
+    docker compose up -d --build     # construye la imagen y arranca el contenedor "reportes"
+    docker compose logs -f           # ver los logs (Ctrl+C para salir)
+    docker compose down              # detenerlo
+
+Abrir **http://127.0.0.1:8001/**. Notas:
+- Dentro del contenedor `localhost` es el propio contenedor. Por eso `docker-compose.yml` cambia `PEDIDOS_URL` a `http://host.docker.internal:3000` (tu computador). Si Pedidos o Inventario corren en otro equipo, pon su IP.
+- `datos/` se monta como volumen: el respaldo de pedidos y pagos se conserva aunque se borre el contenedor.
+- No ejecutar a la vez `iniciar.py` y el contenedor: los dos usarían el puerto 8001 y se repartirían los mensajes de RabbitMQ.
+- Sin compose: `docker build -t reportes .` y `docker run --rm -p 8001:8001 --env-file .env -v ${PWD}/datos:/app/datos reportes`.
+
 ## Cómo funciona
 
 | Fuente | Cómo | Cuándo |
 |--------|------|--------|
 | Clientes (F) | RabbitMQ RPC: colas `clientes.listar` y `cliente.consultar` ([cliente_rpc.py](cliente_rpc.py)); requiere su `worker.py` | Al arrancar, al pulsar Actualizar y cuando llega un pedido de un cliente desconocido |
-| Productos (G) | API REST `GET /api/productos` (nombre, categoría, precio). Hay que poner su URL en `PRODUCTOS_URL`; no tiene valor por defecto | Al arrancar, al pulsar Actualizar y cuando llega un pedido con un producto desconocido |
+| Productos (G) | RabbitMQ RPC: colas `productos.listar` y `producto.consultar` (su `worker.py`); mismo `AMQP_URL`. Respaldo HTTP con `PRODUCTOS_MODO=http` + `PRODUCTOS_URL` | Al arrancar, al pulsar Actualizar y cuando llega un pedido con un producto desconocido |
 | Pedidos (E) | API REST `GET /api/pedidos` y `/api/pedidos/{id}` | Al arrancar y al pulsar Actualizar |
+| Pedidos / Inventario por RabbitMQ (opcional) | Si crean un worker con las colas `pedidos.listar` / `inventario.listar`, Reportes lo detecta solo y deja de necesitar sus IPs. Qué deben agregar: [PEDIR_A_PEDIDOS_E_INVENTARIO.md](PEDIR_A_PEDIDOS_E_INVENTARIO.md) | Al arrancar, al pulsar Actualizar y con cada evento de inventario |
+| Facturación (K) | Evento `FacturaGenerada` por RabbitMQ: cola propia `reportes_facturacion_queue` enlazada a `facturacion_exchange`; un `facturaId` repetido se ignora | **En tiempo real** |
 | Pedidos / Pagos | Eventos RabbitMQ `PedidoCreado`, `PagoAprobado`, `PagoRechazado` en las colas propias `reportes_pedidos_queue` y `reportes_pagos_queue` | **En tiempo real** |
+
+### Autenticación JWT con los otros grupos
+
+Clientes, Inventario y Pedidos ya no entregan datos sin token. Reportes inicia sesión solo, guarda el token en memoria y, si recibe `401` (vencido), vuelve a iniciar sesión y reintenta una vez. Las cuentas van en el `.env` (ver `.env.example`):
+
+| Grupo | Cómo obtiene el token | Variables | Cómo lo envía |
+|-------|----------------------|-----------|---------------|
+| Clientes (F) | Cola `auth.login` con `{"usuario","password"}` | `CLIENTES_RPC_USUARIO`, `CLIENTES_RPC_PASSWORD` | Header AMQP `Authorization: Bearer <token>` |
+| Inventario (H) | Cola `inventario.login` (su propia clave, distinta a la de F) | `INVENTARIO_RPC_USUARIO`, `INVENTARIO_RPC_PASSWORD` | Header AMQP `Authorization: Bearer <token>` |
+| Pedidos (E) | `POST /api/auth/token` con `{"role": "operador"}` (o un token fijo en `PEDIDOS_TOKEN`) | `PEDIDOS_ROL`, `PEDIDOS_TOKEN` | Header HTTP `Authorization: Bearer <token>` |
+| Productos (G) | Aún no usa JWT | — | — |
+
+Si falta una cuenta o la rechazan, el recuadro de ese servicio en el dashboard lo explica (por ejemplo: *Faltan CLIENTES_RPC_USUARIO y CLIENTES_RPC_PASSWORD en el .env*).
 
 - **En vivo:** al cambiar cualquier dato, la API avisa a los dashboards abiertos por `/stream` (Server-Sent Events) y estos se redibujan. No hay consulta cada X segundos.
 - **Respaldo:** Clientes no publica eventos y Pedidos no avisa cuando cambia el estado de un pedido; por eso cada `REFRESCO_SEG` (300 s por defecto, `0` = apagado) se vuelve a leer su API. Si Clientes publicara un evento al registrar usuarios, se podría enlazar y el respaldo sobraría.
-- **Estado de pago:** viene de los eventos de Pagos; mientras no existan, se deduce del estado del pedido (PAGADO/ENVIADO/COMPLETADO → aprobado; CANCELADO → rechazado; PENDIENTE/EN_PROCESO → pendiente).
+- **Estado de pago:** viene de los eventos de Pagos (`PagoAprobado` / `PagoRechazado`), que mandan siempre. Mientras no haya evento, se deduce del estado del pedido en Pedidos: PAGADO / ENVIADO / COMPLETADO → aprobado; PENDIENTE / EN_PROCESO → pendiente; **CANCELADO → cancelado** (Pedidos cancela tanto por pago rechazado como por inventario insuficiente, así que sin el evento de Pagos no se puede saber cuál fue).
+- **Falta de stock:** el evento `InventarioInsuficiente` marca el pedido como "SIN STOCK". Esos pedidos no cuentan como venta aprobada aunque el pago se haya aprobado.
 - Al reiniciar la API se pierde la memoria y se reconstruye con las APIs; los eventos publicados mientras estaba apagada esperan en la cola durable.
 
 ## API de Reportes

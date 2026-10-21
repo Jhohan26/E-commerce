@@ -1,0 +1,705 @@
+{
+  "info": {
+    "name": "Carrito (Grupo D) - Seguridad JWT",
+    "description": "Fase 4 del laboratorio Semana 9. 1) Define JWT_SECRET en el carrito. 2) python scripts/generar_tokens.py --postman (o pega los tokens reales del módulo de autenticación). 3) Importa esta colección y el environment generado. 4) Ejecuta la colección con el Runner. Las carpetas 1 a 7 no necesitan RabbitMQ; la 8 sí (Pedidos y Clientes encendidos).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Endpoint público sin token",
+      "item": [
+        {
+          "name": "GET /api/productos (sin token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 200', function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/productos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "productos"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "GET /health (sin token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 200', function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Endpoint protegido sin token",
+      "item": [
+        {
+          "name": "GET carrito sin token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });",
+                  "pm.test('Incluye WWW-Authenticate: Bearer', function () { pm.response.to.have.header('WWW-Authenticate', 'Bearer'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "POST pedido sin token -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}/pedido",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}",
+                "pedido"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Authorization con texto cualquiera (no es un JWT) -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_basura}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": "Demuestra que NO basta con que exista el encabezado: se valida el token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Endpoint protegido con token válido",
+      "item": [
+        {
+          "name": "GET carrito con token de cliente -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 200', function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Token alterado",
+      "item": [
+        {
+          "name": "Rol modificado en el payload sin re-firmar -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alterado}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": "Mismo token del cliente con rol=administrador, sin volver a firmar."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Token vencido",
+      "item": [
+        {
+          "name": "Token con exp en el pasado -> 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });",
+                  "pm.test('Mensaje indica vencimiento', function () { pm.expect(pm.response.json().detail).to.include('vencido'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_vencido}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Rol no autorizado",
+      "item": [
+        {
+          "name": "Operador consulta un carrito -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 403', function () { pm.expect(pm.response.code).to.be.oneOf([403]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_operador}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Administrador intenta agregar al carrito -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 403', function () { pm.expect(pm.response.code).to.be.oneOf([403]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_administrador}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}",
+                "items"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"producto_id\": 1, \"cantidad\": 1}"
+            }
+          }
+        },
+        {
+          "name": "Cliente consulta el carrito de OTRO cliente -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 403', function () { pm.expect(pm.response.code).to.be.oneOf([403]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{otro_cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{otro_cliente_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Cliente intenta comprar por OTRO cliente -> 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 403', function () { pm.expect(pm.response.code).to.be.oneOf([403]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{otro_cliente_id}}/pedido",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{otro_cliente_id}}",
+                "pedido"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Rol autorizado",
+      "item": [
+        {
+          "name": "Cliente agrega un producto a su carrito -> 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 201 ó 404', function () { pm.expect(pm.response.code).to.be.oneOf([201, 404]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}",
+                "items"
+              ]
+            },
+            "description": "Devuelve 404 solo si el producto 1 no existe en el catálogo actual.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"producto_id\": 1, \"cantidad\": 1}"
+            }
+          }
+        },
+        {
+          "name": "Administrador consulta cualquier carrito -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 200', function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_administrador}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Cliente vacía su carrito -> 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 200', function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Integración con Pedidos (requiere RabbitMQ, Clientes y Pedidos activos)",
+      "item": [
+        {
+          "name": "Cliente agrega un producto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 201 ó 404', function () { pm.expect(pm.response.code).to.be.oneOf([201, 404]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}",
+                "items"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"producto_id\": 1, \"cantidad\": 1}"
+            }
+          }
+        },
+        {
+          "name": "Cliente crea el pedido -> 201 con pedidoId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado: 201', function () { pm.expect(pm.response.code).to.be.oneOf([201]); });",
+                  "pm.test('Trae pedidoId', function () { pm.expect(pm.response.json()).to.have.property('pedidoId'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/carrito/{{cliente_id}}/pedido",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "carrito",
+                "{{cliente_id}}",
+                "pedido"
+              ]
+            },
+            "description": "El carrito llama a Pedidos con su propio JWT de servicio (API_USUARIO). Si Pedidos está apagado responde 502 y el carrito se conserva."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "cliente_id",
+      "value": "3"
+    },
+    {
+      "key": "otro_cliente_id",
+      "value": "4"
+    },
+    {
+      "key": "token_basura",
+      "value": "esto-no-es-un-jwt"
+    },
+    {
+      "key": "token_cliente",
+      "value": ""
+    },
+    {
+      "key": "token_operador",
+      "value": ""
+    },
+    {
+      "key": "token_administrador",
+      "value": ""
+    },
+    {
+      "key": "token_vencido",
+      "value": ""
+    },
+    {
+      "key": "token_alterado",
+      "value": ""
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 // Interfaz del microservicio de Pedidos.
-import { api } from './api.js';
+import { api, getAuthSession, setAuthSession } from './api.js';
 import {
   ESTADOS, estadoMeta, escapeHtml, formatMoney, formatNumber,
   formatDateParts, formatDateTime, debounce, statusChipHtml,
@@ -28,6 +28,8 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 const el = {
+  jwtProfile: $('jwt-profile'),
+  btnCopyJwt: $('btn-copy-jwt'),
   svc: { api: $('svc-api'), mysql: $('svc-mysql'), rabbit: $('svc-rabbit') },
   kpi: { total: $('kpi-total'), pend: $('kpi-pendientes'), pag: $('kpi-pagados'), monto: $('kpi-monto') },
   body: $('orders-body'),
@@ -73,6 +75,8 @@ const el = {
   statusForm: $('status-form'),
   statusText: $('status-text'),
   statusSelect: $('status-select'),
+  statusMotivoField: $('status-motivo-field'),
+  statusMotivoSelect: $('status-motivo-select'),
   statusError: $('status-error'),
   statusSave: $('status-save')
 };
@@ -250,7 +254,7 @@ function orderRow(o) {
       <td><span class="date">${escapeHtml(date.date)}</span><span class="time">${escapeHtml(date.time)}</span></td>
       <td class="num" title="${items} ${items === 1 ? 'producto' : 'productos'}">${formatNumber(o.totalUnidades)}</td>
       <td class="num strong">${formatMoney(o.total)}</td>
-      <td>${statusChipHtml(o.estado)}</td>
+      <td>${statusChipHtml(o.estado, o.motivoCancelacion)}</td>
       <td class="col-actions">
         <button type="button" class="icon-btn" data-action="menu" data-id="${o.id}"
                 aria-haspopup="menu" aria-expanded="false" aria-label="Acciones del pedido #${o.id}">
@@ -648,6 +652,10 @@ function validateForm() {
 
 function openNew() {
   if (!el.lines.children.length) addLine();
+  const { user } = getAuthSession();
+  if (user && user.role === 'cliente' && user.clienteId) {
+    el.cliente.value = user.clienteId;
+  }
   cargarClientes();
   updateClienteCard();
   updatePreview();
@@ -779,14 +787,27 @@ function renderDetail(p) {
   const clienteInfo = getClienteInfo(p.clienteId);
   const clienteNom = clienteInfo ? clienteInfo.nombre : (Number(p.clienteId) === 25 ? 'Carlos Gómez' : `Cliente #${p.clienteId}`);
 
+  const isCancelado = p.estado === 'CANCELADO';
+  const isInventario = isCancelado && (p.motivoCancelacion || '').toLowerCase().includes('inventario');
+  const isPago = isCancelado && (p.motivoCancelacion || '').toLowerCase().includes('pago');
+  const tituloMotivo = isInventario
+    ? '📦 Cancelado por falta de existencias (Inventario)'
+    : (isPago ? '💳 Cancelado por rechazo de pasarela (Pagos)' : '⚠️ Pedido cancelado');
+
+  const motivoCard = isCancelado ? `
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;border-radius:8px;padding:12px 14px;margin:12px 0 16px;">
+      <strong style="color:#991b1b;display:block;font-size:0.85rem;margin-bottom:3px;letter-spacing:0.02em;">${tituloMotivo}</strong>
+      <span style="color:#b91c1c;font-size:0.92rem;font-weight:500;">${escapeHtml(p.motivoCancelacion || 'Pedido cancelado.')}</span>
+    </div>` : '';
+
   el.detailBody.innerHTML = `
     <dl class="facts">
-      <div><dt>Estado</dt><dd>${statusChipHtml(p.estado)}</dd></div>
+      <div><dt>Estado</dt><dd>${statusChipHtml(p.estado, p.motivoCancelacion)}</dd></div>
       <div><dt>Cliente</dt><dd><strong>${escapeHtml(clienteNom)}</strong> <span style="color:var(--c-muted,#64748b);font-size:0.85rem;">(ID: #${escapeHtml(p.clienteId)})</span></dd></div>
       <div><dt>Fecha</dt><dd>${escapeHtml(formatDateTime(p.fecha))}</dd></div>
       <div><dt>Total</dt><dd class="strong">${formatMoney(p.total)}</dd></div>
     </dl>
-
+    ${motivoCard}
     <section class="section">
       <h3>Productos</h3>
       <table class="table table-compact">
@@ -843,6 +864,11 @@ function openStatus(id) {
     `<option value="${s.value}">${escapeHtml(s.label)}</option>`).join('');
   el.statusSelect.value = current;
   el.statusText.textContent = `Pedido #${id}. Estado actual: ${estadoMeta(current).label}.`;
+
+  if (el.statusMotivoField) {
+    el.statusMotivoField.hidden = current !== 'CANCELADO';
+  }
+
   hideInline(el.statusError);
   el.statusSave.disabled = false;
   el.statusSave.textContent = 'Guardar cambio';
@@ -855,8 +881,9 @@ async function handleStatusSubmit(e) {
   const id = state.statusId;
   const order = state.orders.find((o) => o.id === id) || state.detail;
   const next = el.statusSelect.value;
+  const motivo = next === 'CANCELADO' && el.statusMotivoSelect ? el.statusMotivoSelect.value : null;
 
-  if (order && order.estado === next) {
+  if (order && order.estado === next && order.motivoCancelacion === motivo) {
     showInline(el.statusError, 'El pedido ya está en ese estado. Elige uno distinto.');
     return;
   }
@@ -864,7 +891,7 @@ async function handleStatusSubmit(e) {
   el.statusSave.disabled = true;
   el.statusSave.textContent = 'Guardando…';
   try {
-    await api.cambiarEstado(id, next);
+    await api.cambiarEstado(id, next, motivo);
     el.dlgStatus.close();
     toast(`Pedido #${id} actualizado a "${estadoMeta(next).label}".`, 'success');
     await loadOrders({ silent: true });
@@ -964,6 +991,11 @@ el.pgNext.addEventListener('click', () => { state.page += 1; render(); });
 el.detailStatus.addEventListener('click', () => { if (state.detailId) openStatus(state.detailId); });
 el.detailResend.addEventListener('click', () => { if (state.detailId) resendEvent(state.detailId); });
 el.statusForm.addEventListener('submit', handleStatusSubmit);
+if (el.statusSelect) {
+  el.statusSelect.addEventListener('change', () => {
+    if (el.statusMotivoField) el.statusMotivoField.hidden = el.statusSelect.value !== 'CANCELADO';
+  });
+}
 
 // Cierre de diálogos
 document.querySelectorAll('dialog').forEach((dialog) => {
@@ -1002,6 +1034,91 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+async function aplicarPerfilJwt(profileValue, { notify = true } = {}) {
+  const val = profileValue || 'administrador';
+  if (el.jwtProfile) el.jwtProfile.value = val;
+
+  const banner = $('jwt-role-banner');
+  const bannerText = $('jwt-role-banner-text');
+  if (banner && bannerText) {
+    if (val.startsWith('cliente:')) {
+      const cid = Number(val.split(':')[1]) || 1;
+      bannerText.textContent = `🔎 Estás viendo únicamente los pedidos del Cliente #${cid} (según el rol "cliente" del token JWT activo).`;
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+  }
+
+  if (val === 'sin-token') {
+    setAuthSession({ token: '', profile: 'sin-token', user: null });
+    if (notify) toast('Sesión sin token JWT: las rutas protegidas responderán 401.', 'warning');
+    await loadOrders();
+    return;
+  }
+
+  let payload = { role: 'administrador' };
+  if (val === 'operador') {
+    payload = { role: 'operador' };
+  } else if (val.startsWith('cliente:')) {
+    const cid = Number(val.split(':')[1]) || 1;
+    payload = { role: 'cliente', clienteId: cid };
+  } else if (val === 'vencido') {
+    payload = { role: 'cliente', clienteId: 1, vencido: true };
+  }
+
+  try {
+    const resp = await api.emitirToken(payload);
+    setAuthSession({
+      token: resp.token,
+      profile: val,
+      user: resp.usuario
+    });
+    if (notify) {
+      if (val === 'vencido') {
+        toast('Token JWT vencido activado: las rutas protegidas responderán 401.', 'warning');
+      } else {
+        const extra = resp.usuario?.clienteId ? ` (Cliente #${resp.usuario.clienteId})` : '';
+        toast(`Sesión JWT activa: ${resp.usuario?.role}${extra}.`, 'success');
+      }
+    }
+  } catch (err) {
+    toast(`No se pudo emitir el token JWT: ${friendlyError(err)}`, 'error');
+  }
+
+  await loadOrders();
+}
+
+if (el.jwtProfile) {
+  el.jwtProfile.addEventListener('change', () => {
+    aplicarPerfilJwt(el.jwtProfile.value, { notify: true });
+  });
+}
+
+const btnSwitchAdmin = $('btn-switch-admin');
+if (btnSwitchAdmin) {
+  btnSwitchAdmin.addEventListener('click', () => {
+    aplicarPerfilJwt('administrador', { notify: true });
+  });
+}
+
+if (el.btnCopyJwt) {
+  el.btnCopyJwt.addEventListener('click', async () => {
+    const { token, profile } = getAuthSession();
+    if (!token) {
+      toast('Actualmente estás en modo "Sin token". Elige un rol para copiar su JWT.', 'warning');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(token);
+      toast(`Token JWT (${profile}) copiado al portapapeles.`, 'info');
+    } catch {
+      toast('No se pudo copiar automáticamente; revisa la consola.', 'warning');
+      console.log('Bearer JWT:', token);
+    }
+  });
+}
+
 try { el.toasts.showPopover(); } catch {}
 
 populateDatalists();
@@ -1010,7 +1127,13 @@ cargarProductos();
 addLine();
 renderSkeleton();
 checkHealth();
-loadOrders();
+
+// Inicializar sesión JWT por defecto y cargar pedidos
+(async () => {
+  const saved = getAuthSession();
+  await aplicarPerfilJwt(saved.profile || 'administrador', { notify: false });
+})();
+
 setInterval(checkHealth, HEALTH_INTERVAL_MS);
 
 // Auto-refresco silencioso cada 4 segundos para actualizar estados en vivo (Pagos / Inventario)
@@ -1019,3 +1142,4 @@ setInterval(() => {
     loadOrders({ silent: true });
   }
 }, 4000);
+

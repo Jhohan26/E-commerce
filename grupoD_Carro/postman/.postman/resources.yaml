@@ -1,0 +1,13 @@
+# Use this workspace to collaborate
+workspace:
+  id: 36aacc08-db77-4b03-86b3-c8f3a8d553a8
+
+localResources:
+  collections:
+    - ../Carrito_Seguridad.postman_collection.json
+  environments:
+    - ../Carrito_local.postman_environment.json
+
+cloudResources:
+  collections:
+    ../postman/collections/Carrito (Grupo D) - Seguridad JWT: b2d7f262-f083-409e-8a13-d2a4ba6d092b

@@ -70,8 +70,8 @@
 	.card { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:var(--shadow); }
 	.card h2 { margin:0; font-size:1.02rem; letter-spacing:-.01em; }
 	.card .sub { margin:2px 0 14px; color:var(--mut); font-size:.84rem; }
-	.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-bottom:18px; }
-	.kpi { display:flex; align-items:center; gap:15px; padding:18px; transition:.2s; }
+	.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(178px,1fr)); gap:12px; margin-bottom:18px; }
+	.kpi { display:flex; align-items:center; gap:13px; padding:16px; transition:.2s; }
 	.kpi:hover { transform:translateY(-3px); }
 	.ico { width:48px; height:48px; border-radius:14px; display:grid; place-items:center; font-size:1.3rem; flex:none; }
 	.ico.brand { background:var(--brand-soft); color:var(--brand); } .ico.ok { background:var(--ok-soft); color:var(--ok); }
@@ -95,6 +95,7 @@
 	.cx .pto { width:11px; height:11px; border-radius:50%; margin-top:5px; flex:none; background:var(--mut); }
 	.cx.ok .pto { background:var(--ok); } .cx.error .pto { background:var(--bad); } .cx.sin_configurar .pto { background:var(--warn); }
 	.cx.pendiente .pto { animation:pulso 1.4s infinite; }
+	.cx.opcional .pto { background:var(--info); } .cx.opcional .est { color:var(--info); font-weight:700; }
 	.cx.error { border-color:var(--bad); background:var(--bad-soft); } .cx.sin_configurar { border-color:var(--warn); background:var(--warn-soft); }
 	.cx .nom { font-weight:700; font-size:.92rem; }
 	.cx .tx { font-size:.8rem; color:var(--mut); word-break:break-word; margin-top:2px; }
@@ -120,6 +121,8 @@
 	.tag.APROBADO, .tag.ACTIVO { background:var(--ok-soft); color:var(--ok); }
 	.tag.RECHAZADO, .tag.INACTIVO { background:var(--bad-soft); color:var(--bad); }
 	.tag.PENDIENTE { background:var(--warn-soft); color:var(--warn); }
+	.tag.CANCELADO { background:var(--line); color:var(--mut); }
+	.tag.SIN_STOCK { background:var(--bad-soft); color:var(--bad); margin-left:6px; }
 
 	/* ---- clientes ---- */
 	.cab { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-bottom:14px; }
@@ -170,6 +173,7 @@
 	<symbol id="i-box" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
 	<symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></symbol>
 	<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+	<symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></symbol>
 	<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
 </svg>
 
@@ -210,6 +214,7 @@
 		<div class="card kpi cargando"><div class="ico info"><svg class="i"><use href="#i-bag"/></svg></div><div><div class="v" id="k-pedidos">0</div><div class="l">Pedidos recibidos</div></div></div>
 		<div class="card kpi cargando"><div class="ico ok"><svg class="i"><use href="#i-usercheck"/></svg></div><div><div class="v" id="k-clientes">0</div><div class="l">Clientes que han comprado</div></div></div>
 		<div class="card kpi cargando"><div class="ico warn"><svg class="i"><use href="#i-clock"/></svg></div><div><div class="v" id="k-pend">0</div><div class="l">Pagos pendientes</div></div></div>
+		<div class="card kpi cargando"><div class="ico ok"><svg class="i"><use href="#i-file"/></svg></div><div><div class="v" id="k-facturas">0</div><div class="l">Facturas generadas</div></div></div>
 		<div class="card kpi cargando"><div class="ico bad"><svg class="i"><use href="#i-alert"/></svg></div><div><div class="v" id="k-stock">–</div><div class="l">Productos con stock bajo</div></div></div>
 	</section>
 
@@ -242,8 +247,8 @@
 	<section class="card" style="margin-bottom:18px">
 		<h2>Últimos pedidos</h2><p class="sub">Los pedidos más recientes que ha recibido Reportes</p>
 		<div class="tabla-w"><table>
-			<thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha</th><th class="num">Unidades</th><th class="num">Total</th><th>Pago</th></tr></thead>
-			<tbody id="tb-pedidos"><tr><td colspan="6" class="msg">Aún no hay pedidos.</td></tr></tbody>
+			<thead><tr><th>Pedido</th><th>Cliente</th><th>Fecha</th><th class="num">Unidades</th><th class="num">Total</th><th>Pago</th><th>Factura</th></tr></thead>
+			<tbody id="tb-pedidos"><tr><td colspan="7" class="msg">Aún no hay pedidos.</td></tr></tbody>
 		</table></div>
 	</section>
 
@@ -268,14 +273,24 @@
 const $ = id => document.getElementById(id);
 const peso = n => Number(n || 0).toLocaleString("es-CO", {style:"currency", currency:"COP", maximumFractionDigits:0});
 const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const tagPago = p => `<span class="tag ${esc(p.estado_pago)}">${esc(p.estado_pago)}</span>` +
+	(p.sin_stock ? '<span class="tag SIN_STOCK">SIN STOCK</span>' : "");
 const fecha = f => String(f).replace("T", " ").slice(0, 16);
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const COL = { APROBADO:"#12a150", RECHAZADO:"#e03e3e", PENDIENTE:"#f0a30a" };
+const COL = { APROBADO:"#12a150", RECHAZADO:"#e03e3e", PENDIENTE:"#f0a30a", CANCELADO:"#94a3b8" };
 const PALETA = ["#5b5bf0","#0ea5e9","#12a150","#f0a30a","#ec4899","#8b5cf6","#14b8a6","#f97316","#64748b","#84cc16"];
 const charts = {};
 const params = new URLSearchParams(location.search);
 const REDUCIR = matchMedia("(prefers-reduced-motion: reduce)").matches || params.has("sinanim");
 let clientes = [], seleccionado = null, ultimo = null;
+
+/* ---------- stock: solo se muestra si Inventario está conectado ---------- */
+const seccionStock = $("w-stock").closest("section"), tarjetaStock = $("k-stock").closest(".kpi");
+function mostrarStock(hayInventario, hayProductos) {
+	seccionStock.style.display = hayInventario ? "" : "none";
+	tarjetaStock.style.display = hayInventario && hayProductos ? "" : "none";
+}
+mostrarStock(false, false);
 
 /* ---------- tema ---------- */
 function aplicarTema(t) {
@@ -290,7 +305,8 @@ try { temaInicial = localStorage.getItem("tema") || (matchMedia("(prefers-color-
 const pedido = params.get("tema");      // ?tema=claro | ?tema=oscuro
 if (pedido) temaInicial = pedido.startsWith("o") || pedido === "dark" ? "dark" : "light";
 document.documentElement.dataset.theme = temaInicial;
-Chart.defaults.animation = REDUCIR ? false : { duration:600 };
+if (REDUCIR) Chart.defaults.animation = false;
+else Chart.defaults.animation.duration = 600;      // solo se cambia la duración: reemplazar todo el objeto rompe las gráficas
 if (REDUCIR) $("aro-arco").style.transition = "none";
 Chart.defaults.font.family = 'Inter,"Segoe UI",system-ui,sans-serif';
 Chart.defaults.color = css("--mut"); Chart.defaults.borderColor = css("--line");
@@ -367,9 +383,16 @@ function dibujarTodo(d) {
 }
 
 /* ---------- conexiones con los otros servicios ---------- */
-const TXT_ESTADO = { ok:"Conectado", error:"Sin conexión", sin_configurar:"Sin configurar", pendiente:"Conectando…" };
+const TXT_ESTADO = { ok:"Conectado", error:"Sin conexión", sin_configurar:"Sin configurar", pendiente:"Conectando…", opcional:"Opcional" };
 function pintarConexiones(st) {
-	$("conex-grid").innerHTML = Object.values(st).map(f => {
+	$("conex-grid").innerHTML = Object.entries(st)
+		.filter(([clave, f]) => !(clave === "inventario" && f.estado === "sin_configurar")           // sin Inventario no se muestra su tarjeta
+			&& !(clave === "pedidos" && f.estado === "error" && st.rabbit.estado === "ok"))        // la API de Pedidos es opcional si los pedidos llegan en vivo
+		.map(([clave, f0]) => {
+		const f = (clave === "pedidos" && f0.estado === "error" && st.rabbit.estado === "ok")
+			? Object.assign({}, f0, { estado:"opcional", etiqueta:"Pedidos · historial (API)",
+				detalle:"Los pedidos nuevos ya llegan en vivo por RabbitMQ (ver «Pedidos y pagos en vivo»). Esta API solo sirve para traer pedidos anteriores y necesita la dirección del equipo de Pedidos en PEDIDOS_URL. Ahora no responde." })
+			: f0;
 		const extra = (f.estado === "ok" && f.cantidad != null ? " · " + f.cantidad + " dato(s)" : "") + (f.hora && f.estado !== "pendiente" ? " · " + f.hora : "");
 		return `<div class="cx ${esc(f.estado)}"><span class="pto"></span><div>
 			<div class="nom">${esc(f.etiqueta)}</div>
@@ -441,12 +464,14 @@ async function cargar() {
 		const decididos = cant("APROBADO") + cant("RECHAZADO"), tasa = decididos ? Math.round(100 * cant("APROBADO") / decididos) : 0;
 		contar("k-ventas", res.ventas_aprobadas, peso);
 		contar("k-total-clientes", res.total_clientes); contar("k-pedidos", res.total_pedidos);
-		contar("k-clientes", res.clientes_con_compras); contar("k-pend", cant("PENDIENTE"));
+		contar("k-clientes", res.clientes_con_compras); contar("k-pend", cant("PENDIENTE")); contar("k-facturas", res.facturas);
+		mostrarStock(st.inventario.estado === "ok", stock.resumen.total > 0);
 		if (stock.resumen.total) contar("k-stock", stock.resumen.bajos + stock.resumen.agotados); else $("k-stock").textContent = "–";
 		$("k-tasa").textContent = decididos ? tasa + " %" : "–";
 		$("aro-arco").style.strokeDashoffset = 314.16 * (1 - tasa / 100);
 		$("hero-sub").textContent = res.total_pedidos
-			? `${res.total_pedidos} pedido(s) de ${res.clientes_con_compras} cliente(s) · ${cant("APROBADO")} pago(s) aprobado(s)`
+			? `${res.total_pedidos} pedido(s) de ${res.clientes_con_compras} cliente(s) · ${cant("APROBADO")} pago(s) aprobado(s)` +
+			  (res.sin_stock ? ` · ${res.sin_stock} cancelado(s) por falta de stock` : "")
 			: "Todavía no hay pedidos registrados";
 		$("ayuda").innerHTML = textoSinPedidos(st);
 		$("ayuda").style.display = res.total_pedidos === 0 ? "block" : "none";
@@ -455,8 +480,9 @@ async function cargar() {
 		$("tb-pedidos").innerHTML = recientes.length ? recientes.map(p => `<tr>
 			<td><b>#${esc(p.pedido_id)}</b></td><td>${esc(p.cliente || "Cliente #" + p.cliente_id)}</td><td>${esc(fecha(p.fecha))}</td>
 			<td class="num">${esc(p.unidades)}</td><td class="num"><b>${peso(p.total)}</b></td>
-			<td><span class="tag ${esc(p.estado_pago)}">${esc(p.estado_pago)}</span></td></tr>`).join("")
-			: '<tr><td colspan="6" class="msg">Aún no hay pedidos.</td></tr>';
+			<td>${tagPago(p)}</td>
+			<td>${p.factura ? esc(p.factura) : "—"}</td></tr>`).join("")
+			: '<tr><td colspan="7" class="msg">Aún no hay pedidos.</td></tr>';
 		pintarClientes();
 		$("pie").textContent = "Actualizado " + new Date().toLocaleTimeString("es-CO");
 	} catch (e) {
@@ -490,10 +516,11 @@ async function verCliente(id) {
 				<div><div class="v">${peso(r.total_pagado)}</div><div class="l">Total pagado</div></div>
 				<div><div class="v">${peso(r.ticket_promedio)}</div><div class="l">Promedio por pedido</div></div>
 				<div><div class="v">${esc(r.pagos_aprobados)} / ${esc(r.pagos_rechazados)}</div><div class="l">Pagos aprobados / rechazados</div></div>
+				<div><div class="v">${esc(r.pagos_cancelados || 0)}</div><div class="l">Pedidos cancelados</div></div>
 			</div>
 			${d.ultimos_pedidos.length ? `<div class="tabla-w"><table><thead><tr><th>Pedido</th><th>Fecha</th><th class="num">Total</th><th>Pago</th></tr></thead><tbody>
 			${d.ultimos_pedidos.map(p => `<tr><td><b>#${esc(p.pedido_id)}</b></td><td>${esc(fecha(p.fecha))}</td><td class="num">${peso(p.total)}</td>
-				<td><span class="tag ${esc(p.estado_pago)}">${esc(p.estado_pago)}</span></td></tr>`).join("")}</tbody></table></div>`
+				<td>${tagPago(p)}</td></tr>`).join("")}</tbody></table></div>`
 			: '<div class="msg">Este cliente aún no tiene pedidos.</div>'}`;
 	} catch (e) { box.innerHTML = `<div class="msg">No se pudo cargar el reporte: ${esc(e.message)}</div>`; }
 }

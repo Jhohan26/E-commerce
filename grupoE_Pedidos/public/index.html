@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=2.2">
+  <link rel="stylesheet" href="css/styles.css?v=2.3">
 </head>
 <body>
 
@@ -49,22 +49,41 @@
         </span>
       </a>
 
-      <div class="services" id="services" role="status" aria-live="polite" aria-label="Estado de los servicios">
-        <span class="service" id="svc-api" data-state="checking">
-          <span class="service-dot" aria-hidden="true"></span>
-          <span class="service-name">API</span>
-          <span class="service-state sr-only">Verificando</span>
-        </span>
-        <span class="service" id="svc-mysql" data-state="checking">
-          <span class="service-dot" aria-hidden="true"></span>
-          <span class="service-name">MySQL</span>
-          <span class="service-state sr-only">Verificando</span>
-        </span>
-        <span class="service" id="svc-rabbit" data-state="checking">
-          <span class="service-dot" aria-hidden="true"></span>
-          <span class="service-name">RabbitMQ</span>
-          <span class="service-state sr-only">Verificando</span>
-        </span>
+      <div class="topbar-right">
+        <div class="jwt-bar">
+          <label for="jwt-profile" class="jwt-label">Sesión JWT</label>
+          <select id="jwt-profile" class="jwt-select">
+            <option value="administrador">Administrador</option>
+            <option value="operador">Operador</option>
+            <option value="cliente:1">Cliente #1</option>
+            <option value="cliente:2">Cliente #2</option>
+            <option value="cliente:3">Cliente #3</option>
+            <option value="cliente:25">Cliente #25</option>
+            <option value="vencido">Token vencido (401)</option>
+            <option value="sin-token">Sin token (401)</option>
+          </select>
+          <button type="button" class="jwt-copy-btn" id="btn-copy-jwt" title="Copiar Bearer Token JWT al portapapeles para Postman">
+            Copiar JWT
+          </button>
+        </div>
+
+        <div class="services" id="services" role="status" aria-live="polite" aria-label="Estado de los servicios">
+          <span class="service" id="svc-api" data-state="checking">
+            <span class="service-dot" aria-hidden="true"></span>
+            <span class="service-name">API</span>
+            <span class="service-state sr-only">Verificando</span>
+          </span>
+          <span class="service" id="svc-mysql" data-state="checking">
+            <span class="service-dot" aria-hidden="true"></span>
+            <span class="service-name">MySQL</span>
+            <span class="service-state sr-only">Verificando</span>
+          </span>
+          <span class="service" id="svc-rabbit" data-state="checking">
+            <span class="service-dot" aria-hidden="true"></span>
+            <span class="service-name">RabbitMQ</span>
+            <span class="service-state sr-only">Verificando</span>
+          </span>
+        </div>
       </div>
     </div>
   </header>
@@ -105,6 +124,12 @@
         <span class="kpi-note">Suma de todos los pedidos (COP)</span>
       </div>
     </section>
+
+    <!-- Aviso de filtro por rol JWT cuando se selecciona un cliente -->
+    <div id="jwt-role-banner" hidden style="background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span id="jwt-role-banner-text" style="color:#1e3a8a;font-size:13px;font-weight:500;"></span>
+      <button type="button" class="btn btn-sm" id="btn-switch-admin" style="height:28px;font-size:12px;">Ver todos (Modo Administrador)</button>
+    </div>
 
     <!-- Listado -->
     <section class="panel" aria-labelledby="listado-titulo">
@@ -289,6 +314,16 @@
         <select id="status-select" class="control"></select>
       </div>
 
+      <div class="field" id="status-motivo-field" hidden>
+        <label for="status-motivo-select">Motivo de cancelación</label>
+        <select id="status-motivo-select" class="control">
+          <option value="Inventario insuficiente (Grupo H)">Inventario insuficiente </option>
+          <option value="Pago rechazado (Grupo B)">Pago rechazado </option>
+          <option value="Cancelado por el cliente">Cancelado por el cliente</option>
+          <option value="Cancelado manualmente">Cancelado manualmente</option>
+        </select>
+      </div>
+
       <div class="alert alert-error" id="status-error" role="alert" hidden></div>
 
       <div class="modal-actions">
@@ -301,6 +336,6 @@
   <!-- Notificaciones -->
   <div class="toasts" id="toasts" popover="manual" aria-live="polite" aria-atomic="false"></div>
 
-  <script type="module" src="js/app.js?v=2.3"></script>
+  <script type="module" src="js/app.js?v=2.6"></script>
 </body>
 </html>

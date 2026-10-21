@@ -2,6 +2,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+import api
 import productos as catalogo
 import rabbit
 
@@ -29,6 +30,10 @@ def lineas_carrito(cliente_id: int) -> tuple[list[dict], int]:
             total += subtotal
             lineas.append({**p, "cantidad": cant, "subtotal": subtotal})
     return lineas, total
+
+
+# API REST protegida con JWT + endpoints de salud (ver api.py). La interfaz web de abajo no cambia.
+app.include_router(api.crear_router(carritos, lineas_carrito))
 
 
 def cargar_cliente(cliente_id: int):

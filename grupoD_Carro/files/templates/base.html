@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}Tienda{% endblock %}</title>
+<style>
+  :root { --fondo:#f2f5f3; --papel:#fff; --tinta:#17252a; --suave:#5c6b70; --linea:#d5ddd9; --acento:#0b6e4f; --acento-osc:#08523b; --error:#a4262c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 "Trebuchet MS", "Segoe UI", sans-serif; background:var(--fondo); color:var(--tinta); }
+  header { background:var(--tinta); color:#fff; padding:.9rem 1.5rem; display:flex; justify-content:space-between; align-items:center; }
+  header a { color:#fff; text-decoration:none; font-weight:700; letter-spacing:.02em; }
+  main { max-width:1080px; margin:0 auto; padding:1.5rem; }
+  h1,h2 { line-height:1.2; margin:0 0 .75rem; }
+  .panel { background:var(--papel); border:1px solid var(--linea); border-radius:6px; padding:1.25rem; }
+  .cliente { margin-bottom:1.25rem; display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:center; }
+  .cliente p { margin:0; color:var(--suave); }
+  .grid { display:grid; grid-template-columns:2fr 1fr; gap:1.25rem; align-items:start; }
+  @media (max-width:800px){ .grid { grid-template-columns:1fr; } }
+  .producto { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:.8rem 0; border-bottom:1px solid var(--linea); }
+  .producto:last-child { border-bottom:0; }
+  .precio { color:var(--suave); }
+  form.en-linea { display:flex; gap:.5rem; align-items:center; margin:0; }
+  input[type=number], input[type=text] { font:inherit; padding:.45rem .6rem; border:1px solid var(--linea); border-radius:4px; width:5.5rem; }
+  input[type=text] { width:100%; max-width:16rem; }
+  button { font:inherit; font-weight:700; padding:.5rem .9rem; border:0; border-radius:4px; background:var(--acento); color:#fff; cursor:pointer; }
+  button:hover { background:var(--acento-osc); }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline:3px solid #f2b705; outline-offset:2px; }
+  button.sec { background:transparent; color:var(--suave); border:1px solid var(--linea); padding:.3rem .6rem; font-weight:400; }
+  button.sec:hover { background:var(--fondo); }
+  table { width:100%; border-collapse:collapse; }
+  td, th { padding:.4rem 0; text-align:left; vertical-align:top; }
+  td.num, th.num { text-align:right; }
+  .total { font-size:1.25rem; font-weight:700; display:flex; justify-content:space-between; border-top:2px solid var(--tinta); padding-top:.6rem; margin:.75rem 0; }
+  .aviso { padding:.7rem 1rem; border-left:4px solid var(--error); background:#fbeeee; color:var(--error); margin-bottom:1rem; }
+  .ok { color:var(--acento); font-weight:700; }
+  .vacio { color:var(--suave); }
+  code, pre { font-family:Consolas, monospace; font-size:.85rem; }
+  pre { background:var(--fondo); padding:.75rem; overflow:auto; border-radius:4px; }
+</style>
+</head>
+<body>
+<header><a href="/">Tienda</a><span>Carrito de compras</span></header>
+<main>{% block contenido %}{% endblock %}</main>
+</body>
+</html>

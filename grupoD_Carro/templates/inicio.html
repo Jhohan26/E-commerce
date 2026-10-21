@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block titulo %}Elegir cliente{% endblock %}
+{% block aviso %}
+{% if error %}<div class="alerta err" role="alert"><div class="wrap">{{ error }}</div></div>{% endif %}
+{% endblock %}
+{% block contenido %}
+<section class="hero corto">
+  <div class="wrap">
+    <div>
+      <h1 class="disp">¿Quién va <em>a comprar?</em></h1>
+      <p>Escribe el número de cliente para abrir su tienda y su carrito.</p>
+      <form class="formcli" method="get" action="/">
+        <label for="cliente_id">Id del cliente</label>
+        <input id="cliente_id" type="number" name="cliente_id" min="1" value="{{ cliente_id }}" required>
+        <button class="cta" type="submit">Ver tienda <svg width="22" height="22"><use href="#i-chev" transform="rotate(-90 12 12)"/></svg></button>
+      </form>
+    </div>
+    <div class="art" aria-hidden="true">
+      <svg viewBox="0 -14 150 184" class="qm">
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M38 52C38 26 56 14 72 14C92 14 104 28 104 46C104 64 86 72 72 82C65 87 64 94 64 106" stroke="#fff" stroke-width="42"/>
+          <path d="M38 52C38 26 56 14 72 14C92 14 104 28 104 46C104 64 86 72 72 82C65 87 64 94 64 106" stroke="#01036B" stroke-width="28"/>
+          <path d="M50 44C50 32 58 26 68 26" stroke="#F8BB14" stroke-width="7"/>
+        </g>
+        <circle cx="64" cy="142" r="21" fill="#fff"/><circle cx="64" cy="142" r="14" fill="#01036B"/>
+        <g stroke="#01036B" stroke-width="7" stroke-linecap="round"><path d="M10 28l14 8M18 62l-12 2M128 8l-6 14M138 60l12 5M132 110l14 8"/></g>
+      </svg>
+    </div>
+  </div>
+</section>
+{% endblock %}

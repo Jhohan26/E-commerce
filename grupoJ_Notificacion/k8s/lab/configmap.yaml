@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notificaciones-config
+  namespace: ecommerce
+data:
+  USER_AUTH_MODE: local
+  EMAIL_ENABLED: "false"
+  RABBITMQ_AUTH_RPC_ENABLED: "false"
+  RABBITMQ_REQUIRE_EVENT_JWT: "false"
+  RABBITMQ_QUEUE: grupo-j.notificaciones.laboratorio
+  RABBITMQ_SOURCES: '[{"exchange":"grupo-j.laboratorio.eventos","type":"topic","keys":["PedidoCreado","PagoAprobado","PagoRechazado","FacturaGenerada","InventarioInsuficiente"]}]'

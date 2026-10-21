@@ -1,0 +1,85 @@
+# Ejecutar con:  docker compose up --build
+#
+# Servicios:
+#   db        -> MySQL 8.4 (se inicializa solo con database/script.sql)
+#   backend   -> API Node/Express        http://localhost:3000
+#   frontend  -> Sitio estático (nginx)  http://localhost:8080
+#   worker    -> Worker Python (RabbitMQ en CloudAMQP + MySQL)
+#
+# CLOUDAMQP_URL se toma del archivo .env de la raíz del proyecto
+# (Compose lo lee automáticamente). El resto de variables DB_* se
+# definen aquí para apuntar al contenedor "db" en vez de localhost.
+
+name: grupo-g-productos
+
+services:
+  db:
+    image: mysql:8.4
+    container_name: gg_db
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: ecommerce_productos
+      TZ: America/Bogota
+    #ports:
+    #  - "3307:3306"   # opcional: para conectarte desde Workbench/DBeaver en localhost:3307
+    volumes:
+      - db_data:/var/lib/mysql
+      # Solo se ejecuta la PRIMERA vez (cuando el volumen está vacío)
+      - ./database/script.sql:/docker-entrypoint-initdb.d/01-script.sql:ro
+    healthcheck:
+      # -h 127.0.0.1 fuerza TCP: así no da "healthy" durante el arranque temporal de init
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prootpass --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  backend:
+    build: ./backend
+    container_name: gg_backend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: rootpass
+      DB_NAME: ecommerce_productos
+    ports:
+      - "3000:3000"   # el frontend (en el navegador) llama a http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: gg_frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+  worker:
+    env_file: .env
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: gg_worker
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: rootpass
+      DB_NAME: ecommerce_productos
+      CLOUDAMQP_URL: ${CLOUDAMQP_URL:?Falta CLOUDAMQP_URL en el archivo .env de la raíz}
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:

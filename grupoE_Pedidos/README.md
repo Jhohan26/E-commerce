@@ -1,14 +1,119 @@
-# 📦 Microservicio de Pedidos
+# 📦 Microservicio de Pedidos (Grupo E)
 
-Servicio encargado de gestionar las órdenes de compra y publicar el evento **`PedidoCreado`** hacia los demás microservicios a través de **RabbitMQ**.
+Servicio encargado de gestionar las órdenes de compra, validar acceso mediante **JWT y roles (`cliente`, `operador`, `administrador`)**, consumir respuestas de **Carrito, Clientes, Productos, Pagos e Inventario**, y publicar el evento **`PedidoCreado`** hacia los demás microservicios a través de **RabbitMQ**.
+
+---
+
+## 🔐 Autenticación JWT y Control de Acceso por Roles
+
+El microservicio protege sus endpoints mediante tokens **Bearer JWT (`HS256`)** firmados con el secreto compartido del clúster (`JWT_SECRET`), siendo totalmente compatible con los tokens emitidos por **Clientes (`auth.login` - Grupo F)** y **Pagos (Grupo B)**.
+
+### Roles soportados
+| Rol | Permisos en el Microservicio de Pedidos |
+|---|---|
+| **`cliente`** | Puede crear pedidos únicamente para su propio `clienteId` y consultar solo sus propios pedidos (`GET /api/pedidos/mios`, `GET /api/pedidos`, `GET /api/pedidos/:id`). Recibe `403 Forbidden` si intenta ver pedidos de otro cliente o cambiar estados. |
+| **`operador`** | Puede consultar todos los pedidos, crear pedidos para cualquier cliente, actualizar el estado (`PUT /api/pedidos/:id/estado`) y reenviar eventos a RabbitMQ. |
+| **`administrador`** | Acceso total a todas las operaciones administrativas y operativas del microservicio. |
+
+---
+
+## 🌐 Endpoints de la API REST
+
+Base URL: `http://localhost:3000`
+
+| Método | Endpoint | Acceso / Rol Requerido | Descripción |
+|---|---|---|---|
+| `GET` | `/api/health` | **Público** (Sin token) | Estado de salud del servicio (`API`, `MySQL`, `RabbitMQ`) para probes de Kubernetes |
+| `GET` | `/api/productos` | **Público** (Sin token) | Catálogo de productos (sincronizado vía RPC con Grupo G) |
+| `GET` | `/api/clientes` | **Público** | Listado de clientes obtenidos vía RabbitMQ RPC desde Grupo F (con `auth.login` JWT) |
+| `POST` | `/api/auth/token` | **Público** | Emite tokens JWT de prueba por rol (`cliente`, `operador`, `administrador` o `vencido: true`) |
+| `GET` | `/api/auth/me` | **JWT** (`cliente`, `operador`, `administrador`) | Verifica el token enviado y devuelve los claims decodificados |
+| `GET` | `/api/pedidos` | **JWT** (`cliente` ve solo los suyos; `operador`/`administrador` ven todos) | Lista los pedidos registrados |
+| `GET` | `/api/pedidos/mios` | **JWT** (`cliente`, `operador`, `administrador`) | Lista exclusivamente los pedidos asociados al `clienteId` del token |
+| `GET` | `/api/pedidos/:id` | **JWT** (`cliente` propietario, `operador`, `administrador`) | Detalle de un pedido con sus productos y motivo de cancelación |
+| `POST` | `/api/pedidos` | **JWT** (`cliente` propio, `operador`, `administrador`) | Crea un pedido en MySQL y publica `PedidoCreado` en RabbitMQ |
+| `PUT` | `/api/pedidos/:id/estado` | **JWT** (**Solo `operador` y `administrador`**) | Cambia el estado del pedido (`PAGADO`, `CANCELADO`, etc.) y registra `motivo` |
+| `POST` | `/api/pedidos/:id/reenviar-evento` | **JWT** (**Solo `operador` y `administrador`**) | Reenvía manualmente el evento `PedidoCreado` a RabbitMQ |
+
+### Pruebas en Postman (Los 7 casos del Laboratorio)
+En la carpeta [`postman/Pedidos_JWT_Postman_Collection.json`](postman/Pedidos_JWT_Postman_Collection.json) se incluye la colección lista para importar en Postman con:
+1. Emisión automática de tokens (`cliente`, `operador`, `administrador` y token vencido).
+2. Los **7 casos obligatorios de prueba** (`200 OK` público, `401` sin token, `200` con token válido, `401` token alterado, `401` token vencido, `403` rol no autorizado y `201` rol autorizado).
+
+---
+
+## 🗄️ Base de Datos y Carga Automática del Dump (`database/schema.sql`)
+
+El microservicio cuenta con **inicialización y carga de dump 100% automática**:
+1. El archivo [`database/schema.sql`](database/schema.sql) contiene tanto la estructura de las tablas (`pedidos` y `pedido_items`) como el **dump de datos reales** de prueba.
+2. Al arrancar el microservicio ([`src/config/db.js`](src/config/db.js)):
+   - Ejecuta automáticamente `CREATE DATABASE IF NOT EXISTS pedidos_db` y crea las tablas si no existen.
+   - Si detecta que la base de datos está recién creada (0 registros), **importa automáticamente todos los pedidos y detalles del dump `database/schema.sql`**.
+   - Si el host primario (`host.docker.internal`) no tiene un servidor MySQL local corriendo, hace **fallback automático** al contenedor interno `pedidos-mysql` desplegado en Docker/Kubernetes.
+
+---
+
+## 🐳 Ejecución con Docker y Docker Compose (Todo incluido: MySQL + Pedidos)
+
+### Opción A: Levantar todo (Base de datos MySQL con Dump + Microservicio de Pedidos) con Docker Compose
+Ideal si quieres levantar el módulo completo con su propia base de datos MySQL en un solo comando sin instalar MySQL en tu máquina:
+
+```powershell
+docker compose up -d --build
+```
+- Esto levanta el contenedor **`pedidos-mysql` (`mysql:8.0`)** cargando automáticamente el dump [`database/schema.sql`](database/schema.sql) y el contenedor **`pedidos-web`** en `http://localhost:3000`.
+
+### Opción B: Construir únicamente la imagen Docker del microservicio
+```powershell
+docker build -t pedidos:lab-jwt-v1 .
+```
+
+---
+
+## ☸️ Orquestación con Kubernetes (Namespace `ecommerce`)
+
+Los manifiestos se encuentran en la carpeta [`k8s/`](k8s/):
+- [`k8s/pedidos.yaml`](k8s/pedidos.yaml): Define el `ConfigMap` (`pedidos-config`), el contenedor de base de datos `Deployment` + `Service` (`pedidos-mysql`), y el microservicio `Deployment` + `Service` (`pedidos-web`) con `startupProbe`, `livenessProbe` y `readinessProbe` apuntando a `/api/health`.
+- [`k8s/secret.example.yaml`](k8s/secret.example.yaml): Plantilla de `Secret` (`pedidos-secret`) para variables sensibles (`DB_USER`, `DB_PASSWORD`, `RABBITMQ_URL`, `JWT_SECRET`, `CLIENTES_RPC_PASSWORD`).
+
+### Paso a paso para desplegar en Kubernetes:
+
+```powershell
+# 1. Construir la imagen Docker local
+docker build -t pedidos:lab-jwt-v1 .
+
+# 2. Crear el namespace compartido (si no existe)
+kubectl create namespace ecommerce
+
+# 3. Crear el archivo k8s/secret.yaml a partir de k8s/secret.example.yaml con las credenciales del entorno y aplicarlo:
+kubectl apply -f k8s/secret.yaml
+
+# 4. Desplegar ConfigMap, MySQL, Deployment y Service de Pedidos
+kubectl apply -f k8s/pedidos.yaml
+
+# 5. Verificar que los Deployments, Pods y Services estén en estado Running
+kubectl get deployments -n ecommerce
+kubectl get pods -n ecommerce
+kubectl get services -n ecommerce
+
+# 6. Exponer el servicio en http://localhost:3000
+kubectl port-forward svc/pedidos-web 3000:3000 -n ecommerce
+```
+
+### Prueba de Resiliencia y Auto-recuperación (Fase 10)
+```powershell
+# Eliminar el Pod de Pedidos y observar cómo el Deployment crea uno nuevo automáticamente
+kubectl delete pod -l app=pedidos-web -n ecommerce
+kubectl get pods -n ecommerce
+```
 
 ---
 
 ## 📡 Integración con RabbitMQ (Guía para los demás grupos)
 
-### Configuración del Exchange
+### Configuración del Exchange de Salida (`PedidoCreado`)
 
-Para recibir los pedidos, tu microservicio debe conectarse a RabbitMQ usando estos parámetros:
+Para recibir los pedidos creados, tu microservicio debe conectarse a RabbitMQ usando estos parámetros:
 
 | Parámetro | Valor |
 |---|---|
@@ -19,16 +124,14 @@ Para recibir los pedidos, tu microservicio debe conectarse a RabbitMQ usando est
 
 > ⚠️ **IMPORTANTE:** Cada microservicio debe declarar **su propia cola duradera** y enlazarla al exchange `pedidos_exchange`. Si dos servicios escuchan la misma cola, RabbitMQ repartirá los pedidos entre ellos y no los recibirán ambos.
 
-### Colas recomendadas por microservicio
-
-| Microservicio | Cola que debe declarar | Binding al Exchange |
-|---|---|---|
-| **Inventario** | `inventario_pedidos_queue` | `pedidos_exchange` |
-| **Pagos** | `pagos_pedidos_queue` | `pedidos_exchange` |
-| **Notificaciones** | `notificaciones_pedidos_queue` | `pedidos_exchange` |
-| **Reportes** | `reportes_pedidos_queue` | `pedidos_exchange` |
-
-*(Nota: la cola `pedidos_creados_auditoria` es de uso interno del módulo de Pedidos; ningún consumidor debe leerla).*
+### Colas y Exchanges que consume e integra Pedidos
+| Integración | Cola / Exchange | Dirección | Descripción |
+|---|---|---|---|
+| **Carrito (Grupo D)** | Cola `pedidos.desde_carro` | Carrito → Pedidos (RPC) | Recibe los pedidos confirmados en el carrito, los guarda en MySQL y publica `PedidoCreado` |
+| **Clientes (Grupo F)** | Colas `auth.login`, `clientes.listar`, `cliente.consultar` | Pedidos → Clientes (RPC + JWT) | Obtiene token Bearer en `auth.login` y consulta clientes reales |
+| **Productos (Grupo G)** | Cola `productos.listar` | Pedidos → Productos (RPC) | Sincroniza catálogo y precios de productos |
+| **Pagos (Grupo B)** | Exchange `pagos_exchange` (cola `pedidos.resultado_pagos`) | Pagos → Pedidos | Actualiza automáticamente el pedido a `PAGADO` o `CANCELADO` (`Pago rechazado`) |
+| **Inventario (Grupo H)** | Exchange `inventario_exchange` (cola `pedidos.resultado_inventario`) | Inventario → Pedidos | Si recibe `InventarioInsuficiente`, actualiza el pedido a `CANCELADO` indicando los productos faltantes |
 
 ---
 
@@ -131,117 +234,9 @@ print(f"[*] Esperando pedidos en {MI_COLA}...")
 channel.start_consuming()
 ```
 
-### 3. Java (Spring Boot)
-
-```java
-@Configuration
-public class RabbitConfig {
-    @Bean
-    public FanoutExchange pedidosExchange() {
-        return new FanoutExchange("pedidos_exchange", true, false);
-    }
-
-    @Bean
-    public Queue miCola() {
-        return new Queue("notificaciones_pedidos_queue", true);
-    }
-
-    @Bean
-    public Binding binding(Queue miCola, FanoutExchange pedidosExchange) {
-        return BindingBuilder.bind(miCola).to(pedidosExchange);
-    }
-}
-
-@Component
-public class PedidoListener {
-    @RabbitListener(queues = "notificaciones_pedidos_queue")
-    public void recibir(String json) {
-        System.out.println("Pedido recibido: " + json);
-    }
-}
-```
-
-### 4. C# / .NET (`RabbitMQ.Client`)
-
-```csharp
-using System.Text;
-using RabbitMQ.Client;
-using RabbitMQ.Client.Events;
-
-var factory = new ConnectionFactory { Uri = new Uri("amqps://...tu_url_de_cloudamqp...") };
-using var conn = factory.CreateConnection();
-using var ch = conn.CreateModel();
-
-ch.ExchangeDeclare("pedidos_exchange", ExchangeType.Fanout, durable: true);
-ch.QueueDeclare("reportes_pedidos_queue", durable: true, exclusive: false, autoDelete: false);
-ch.QueueBind("reportes_pedidos_queue", "pedidos_exchange", "");
-
-var consumer = new EventingBasicConsumer(ch);
-consumer.Received += (model, ea) => {
-    var json = Encoding.UTF8.GetString(ea.Body.ToArray());
-    Console.WriteLine($"[✔] Pedido recibido: {json}");
-    ch.BasicAck(ea.DeliveryTag, false);
-};
-
-ch.BasicConsume("reportes_pedidos_queue", autoAck: false, consumer: consumer);
-Console.ReadLine();
-```
-
 ---
 
-## 🌐 Endpoints de la API REST
-
-Base URL: `http://localhost:3000`
-
-| Método | Endpoint | Descripción | Body / Parámetros |
-|---|---|---|---|
-| `GET` | `/api/health` | Estado del servicio (API, MySQL, RabbitMQ) | Ninguno |
-| `GET` | `/api/pedidos` | Listar todos los pedidos | Query opcional: `?estado=PENDIENTE` |
-| `GET` | `/api/pedidos/:id` | Detalle de un pedido con sus productos | Param: `id` |
-| `POST` | `/api/pedidos` | Crear un pedido y publicar en RabbitMQ | JSON con `clienteId` y `productos` |
-| `PUT` | `/api/pedidos/:id/estado` | Cambiar estado del pedido | JSON: `{ "estado": "PAGADO" }` |
-| `POST` | `/api/pedidos/:id/reenviar-evento` | Reenviar evento a RabbitMQ manualmente | Param: `id` |
-
-### Ejemplo: Crear pedido (`POST /api/pedidos`)
-
-**Request:**
-```json
-{
-  "clienteId": 25,
-  "productos": [
-    {
-      "productoId": 15,
-      "cantidad": 2,
-      "precio": 2500000
-    }
-  ]
-}
-```
-
-**Response (`201 Created`):**
-```json
-{
-  "mensaje": "Pedido creado exitosamente y registrado en la base de datos.",
-  "pedido": {
-    "id": 1005,
-    "clienteId": 25,
-    "fecha": "2026-10-06T02:00:00",
-    "total": 5000000,
-    "estado": "PENDIENTE",
-    "productos": [
-      { "productoId": 15, "cantidad": 2, "precio": 2500000, "subtotal": 5000000 }
-    ]
-  },
-  "rabbitmq": {
-    "publicado": true,
-    "detalle": "Evento PedidoCreado enviado exitosamente al Exchange de RabbitMQ."
-  }
-}
-```
-
----
-
-## 🚀 Puesta en Marcha Local
+## 🚀 Puesta en Marcha Local (Sin Docker)
 
 ### 1. Variables de entorno (`.env`)
 
@@ -263,30 +258,23 @@ RABBITMQ_EXCHANGE=pedidos_exchange
 RABBITMQ_EXCHANGE_TYPE=fanout
 RABBITMQ_ROUTING_KEY=pedido.creado
 RABBITMQ_AUDIT_QUEUE=pedidos_creados_auditoria
+
+# Autenticación JWT y RPC Clientes
+JWT_SECRET=tu_secreto_jwt_compartido
+JWT_ALGORITHM=HS256
+JWT_EXPIRES_IN=1800
+CLIENTES_RPC_USER=demo
+CLIENTES_RPC_PASSWORD=demo123
 ```
 
-### 2. Base de datos
-
-Ejecuta el script [`database/schema.sql`](database/schema.sql) en MySQL Workbench para crear la base de datos `pedidos_db` y las tablas.
-
-### 3. Instalar y ejecutar
+### 2. Instalar y ejecutar
 
 ```powershell
 # Instalar paquetes
 npm install
 
-# Iniciar servidor
+# Iniciar servidor (crea automáticamente la BD pedidos_db, las tablas y carga el dump inicial si está vacía)
 npm start
 ```
 
 Abre **`http://localhost:3000`** en tu navegador.
-
-### 4. Probar que RabbitMQ recibe los eventos
-
-Con el servidor corriendo, abre otra terminal y ejecuta:
-
-```powershell
-npm run test-consumer
-```
-
-Crea un pedido desde la interfaz web o mediante `POST /api/pedidos` y verás el evento recibido en tiempo real con su `ACK`.

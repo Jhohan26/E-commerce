@@ -171,6 +171,81 @@ button:disabled { cursor: not-allowed; }
 .service[data-state='unknown'] .service-state { color: var(--bar-muted); }
 .service[data-state='checking'] .service-dot { background: #f59e0b; }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.jwt-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 12px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+.jwt-label {
+  color: var(--bar-muted);
+  font-weight: 500;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.jwt-select {
+  appearance: none;
+  background-color: rgba(15, 23, 42, 0.55);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='none'><path d='m4 6 4 4 4-4' stroke='%2394a3b8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  height: 24px;
+  padding: 0 24px 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.jwt-select:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background-color: rgba(15, 23, 42, 0.8);
+}
+
+.jwt-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.jwt-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(37, 99, 235, 0.22);
+  color: #93c5fd;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.jwt-copy-btn:hover {
+  background: rgba(37, 99, 235, 0.38);
+  border-color: rgba(96, 165, 250, 0.6);
+  color: #ffffff;
+}
+
 /* ---------- Página ---------- */
 .page {
   width: 100%;

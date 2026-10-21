@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{base_url}}/api/carrito/{{cliente_id}}/items"
+method: POST
+headers:
+  Authorization: Bearer {{token_cliente}}
+  Content-Type: application/json
+body:
+  type: text
+  content: '{"producto_id": 1, "cantidad": 1}'
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 201 ó 404', function () { pm.expect(pm.response.code).to.be.oneOf([201, 404]); });"
+    language: text/javascript
+order: 1000

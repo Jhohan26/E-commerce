@@ -1,0 +1,52 @@
+services:
+  pedidos-mysql:
+    image: mysql:8.0
+    container_name: pedidos-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-1234}
+      MYSQL_DATABASE: ${DB_NAME:-pedidos_db}
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - pedidos_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot", "-p${DB_PASSWORD:-1234}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pedidos-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pedidos:lab-jwt-v1
+    container_name: pedidos-web
+    restart: unless-stopped
+    depends_on:
+      pedidos-mysql:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      DB_HOST: pedidos-mysql
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-1234}
+      DB_NAME: ${DB_NAME:-pedidos_db}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@localhost:5672}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-pedidos_exchange}
+      RABBITMQ_EXCHANGE_TYPE: ${RABBITMQ_EXCHANGE_TYPE:-fanout}
+      RABBITMQ_ROUTING_KEY: ${RABBITMQ_ROUTING_KEY:-pedido.creado}
+      RABBITMQ_AUDIT_QUEUE: ${RABBITMQ_AUDIT_QUEUE:-pedidos_creados_auditoria}
+      RABBITMQ_CONSUMER_QUEUE: ${RABBITMQ_CONSUMER_QUEUE:-simulador_pedidos_queue}
+      JWT_SECRET: ${JWT_SECRET:-es_un_secreto_de_tu_mirada_y_la_mia,_un_presentimiento,_como_un_ángel_que_me_decia}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1800}
+      CLIENTES_RPC_USER: ${CLIENTES_RPC_USER:-demo}
+      CLIENTES_RPC_PASSWORD: ${CLIENTES_RPC_PASSWORD:-demo123}
+
+volumes:
+  pedidos_mysql_data:

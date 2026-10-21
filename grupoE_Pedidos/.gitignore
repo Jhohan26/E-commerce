@@ -1,8 +1,9 @@
 # Dependencias
 node_modules/
 
-# Variables de entorno (contienen contraseñas y URLs privadas)
+# Variables de entorno y secretos de Kubernetes (contienen contraseñas y URLs privadas)
 .env
+k8s/secret.yaml
 
 # Registros y archivos del sistema
 *.log

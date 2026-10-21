@@ -1,7 +1,11 @@
 """Catálogo de productos (consumido del microservicio del Grupo G).
 
-Se consulta por RPC sobre CloudAMQP a las colas del worker de Productos:
+Se consulta por RPC sobre CloudAMQP a las colas del worker de Productos, que ahora
+exige JWT. La autenticación la resuelve cliente_rpc.py (login en `productos.login`
+con PRODUCTOS_USUARIO / PRODUCTOS_PASSWORD del .env y token en el header
+Authorization; si el worker responde 401 renueva el token y reintenta una vez):
 
+    productos.login      ({"usuario", "password"}) -> token JWT
     productos.listar     (cuerpo vacío)  -> todos los productos
     producto.consultar   ({"id": 1})     -> un producto
 
@@ -19,19 +23,62 @@ Comportamiento:
 
 import json
 import os
+import threading
 import time
 
-import rabbit
+import pika
+from dotenv import load_dotenv
 
-COLA_LISTAR = "productos.listar"
+from cliente_rpc import ClienteRPC
+
+load_dotenv()
+
+PRODUCTOS_USUARIO = os.getenv("PRODUCTOS_USUARIO")
+PRODUCTOS_PASSWORD = os.getenv("PRODUCTOS_PASSWORD")
 
 _TTL_SEGUNDOS = 5          # cada cuánto se refresca el catálogo si Productos responde
 _REINTENTO_SEGUNDOS = 15   # tras un fallo, no insistir antes de esto (evita esperas)
 _TIMEOUT_RPC = 4           # segundos de espera por la respuesta de Productos
 _ARCHIVO_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "catalogo_cache.json")
 
+# ClienteRPC mantiene una conexión pika (BlockingConnection), que NO es segura entre hilos y
+# FastAPI atiende cada petición en un hilo distinto: se usa una sola instancia protegida por lock.
+_rpc: ClienteRPC | None = None
+_rpc_lock = threading.Lock()
+
 _NUNCA = float("-inf")
 _estado: dict = {"productos": None, "ultimo_ok": _NUNCA, "ultimo_fallo": _NUNCA}
+
+
+def _cerrar_rpc() -> None:
+    global _rpc
+    if _rpc is not None:
+        try:
+            _rpc.cerrar()
+        except Exception:
+            pass
+        _rpc = None
+
+
+def _pedir_catalogo() -> dict:
+    """Pide el catálogo a Productos con JWT (cliente_rpc.py). Si la conexión se cayó (p. ej. porque
+    estuvo ociosa y CloudAMQP la cerró) reconecta y reintenta una vez, conservando el token."""
+    global _rpc
+    if not PRODUCTOS_USUARIO or not PRODUCTOS_PASSWORD:
+        raise RuntimeError("Faltan PRODUCTOS_USUARIO y PRODUCTOS_PASSWORD en el .env para autenticarse con Productos.")
+    with _rpc_lock:
+        token = None
+        for intento in range(2):
+            try:
+                if _rpc is None:
+                    _rpc = ClienteRPC(PRODUCTOS_USUARIO, PRODUCTOS_PASSWORD)
+                    _rpc.token = token
+                return _rpc.listar_productos(timeout=_TIMEOUT_RPC)
+            except (pika.exceptions.AMQPError, OSError):
+                token = _rpc.token if _rpc is not None else token
+                _cerrar_rpc()
+                if intento == 1:
+                    raise
 
 
 def _normalizar(p: dict) -> dict:
@@ -81,7 +128,7 @@ def listar_productos() -> list[dict]:
         return catalogo  # Productos acaba de fallar: seguir con el último catálogo
 
     try:
-        resp = rabbit.llamar_rpc(COLA_LISTAR, None, _TIMEOUT_RPC)
+        resp = _pedir_catalogo()
         if resp.get("status") != 200:
             raise RuntimeError(resp.get("error", f"status {resp.get('status')}"))
         nuevo = [_normalizar(p) for p in resp["data"]]

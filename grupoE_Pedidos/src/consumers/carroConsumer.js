@@ -100,6 +100,7 @@ async function iniciarConsumidorCarro() {
       isConsuming = false;
       channel = null;
       connection = null;
+      setTimeout(iniciarConsumidorCarro, 5000);
     });
 
     connection.on('error', (err) => {
@@ -107,8 +108,9 @@ async function iniciarConsumidorCarro() {
     });
 
   } catch (err) {
-    console.warn(`[Consumidor Carro] No se pudo iniciar: ${err.message}`);
+    console.warn(`[Consumidor Carro] No se pudo iniciar: ${err.message}. Reintentando en 5s...`);
     isConsuming = false;
+    setTimeout(iniciarConsumidorCarro, 5000);
   }
 }
 

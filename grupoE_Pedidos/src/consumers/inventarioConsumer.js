@@ -48,9 +48,16 @@ async function iniciarConsumidorInventario() {
         console.log(`\n[Inventario -> Pedidos] Evento "${evento || 'Desconocido'}" recibido para Pedido #${pedidoId}:`);
 
         if (evento === 'InventarioInsuficiente') {
-          // Si no hay existencias en bodega, cancelar el pedido automáticamente
-          await service.cambiarEstado(pedidoId, 'CANCELADO');
-          console.log(`[Inventario -> Pedidos] Pedido #${pedidoId} actualizado a estado "CANCELADO" por falta de stock.`);
+          // Si no hay existencias en bodega, cancelar el pedido automáticamente con motivo
+          const faltantes = Array.isArray(body.faltantes) && body.faltantes.length > 0
+            ? body.faltantes.map(f => `Prod #${f.productoId} (Faltan ${f.solicitado - (f.disponible || 0)})`).join(', ')
+            : '';
+          const motivo = faltantes
+            ? `Inventario insuficiente (${faltantes})`
+            : 'Inventario insuficiente (Grupo H)';
+
+          await service.cambiarEstado(pedidoId, 'CANCELADO', motivo);
+          console.log(`[Inventario -> Pedidos] Pedido #${pedidoId} actualizado a estado "CANCELADO" (${motivo}).`);
         } else if (evento === 'InventarioActualizado') {
           console.log(`[Inventario -> Pedidos] Stock reservado exitosamente para Pedido #${pedidoId}.`);
         }
@@ -66,6 +73,7 @@ async function iniciarConsumidorInventario() {
       isConsuming = false;
       channel = null;
       connection = null;
+      setTimeout(iniciarConsumidorInventario, 5000);
     });
 
     connection.on('error', (err) => {
@@ -73,8 +81,9 @@ async function iniciarConsumidorInventario() {
     });
 
   } catch (err) {
-    console.warn(`[Consumidor Inventario] No se pudo iniciar: ${err.message}`);
+    console.warn(`[Consumidor Inventario] No se pudo iniciar: ${err.message}. Reintentando en 5s...`);
     isConsuming = false;
+    setTimeout(iniciarConsumidorInventario, 5000);
   }
 }
 

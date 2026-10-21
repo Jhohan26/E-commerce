@@ -65,8 +65,19 @@ export function debounce(fn, wait = 200) {
   };
 }
 
-export function statusChipHtml(value) {
+export function statusChipHtml(value, motivo = null) {
   const meta = estadoMeta(value);
+  if (value === 'CANCELADO' && motivo) {
+    const isInventario = motivo.toLowerCase().includes('inventario');
+    const isPago = motivo.toLowerCase().includes('pago');
+    const badgeText = isInventario ? 'Inventario' : (isPago ? 'Pago rechazado' : motivo);
+    return `<span class="chip chip-${meta.tone}" title="${escapeHtml(motivo)}" style="display:inline-flex;flex-direction:column;align-items:flex-start;padding:3px 8px;line-height:1.2;">
+      <span style="display:inline-flex;align-items:center;gap:5px;">
+        <span class="chip-dot" aria-hidden="true"></span>${escapeHtml(meta.label)}
+      </span>
+      <span style="font-size:0.68rem;font-weight:600;opacity:0.9;margin-top:1px;">(${escapeHtml(badgeText)})</span>
+    </span>`;
+  }
   return `<span class="chip chip-${meta.tone}"><span class="chip-dot" aria-hidden="true"></span>${escapeHtml(meta.label)}</span>`;
 }
 

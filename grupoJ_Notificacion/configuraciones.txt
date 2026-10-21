@@ -1,106 +1,153 @@
-CONFIGURACIONES DEL MICROSERVICIO DE NOTIFICACIONES — GRUPO J
-Fecha: 3 de octubre de 2026
+CONFIGURACIONES DE NOTIFICACIONES — GRUPO J
+Versión 2.0.0 — 20 de octubre de 2026
+Referencia: laboratorio JWT/Kubernetes y E-commerce-main (3).zip.
 
-1. LENGUAJES Y FORMATOS
-JavaScript: backend, consumidor RabbitMQ, frontend y pruebas.
-HTML5 y CSS3: estructura y presentación de la interfaz web.
-SQL: persistencia de notificaciones y esquema de referencia MySQL.
-JSON: contratos de eventos, respuestas REST y configuración npm.
-YAML: definición de los servicios en Docker Compose.
+1. EJECUCIÓN
+Node.js >=24, Express, SQLite, RabbitMQ, nodemailer, jsonwebtoken.
+npm ci; npm test.
+docker build -t grupo-j-notificaciones:2.0.0 .
+docker compose --env-file .env.integracion -f docker-compose.integracion.yml up -d --build
+PORT=3000 interno; HOST_PORT=3010 en integración, enlace 127.0.0.1.
+Node directo: node --env-file=.env.integracion src/index.js
+DATABASE_PATH=./data/notificaciones.sqlite; /app/data/notificaciones.sqlite en Docker.
+Una réplica y worker por SQLite. El SQL MySQL es referencia, no motor conectado.
 
-2. ENTORNO Y FRAMEWORK
-Node.js: versión requerida 24 o superior; backend con módulos ES.
-Express: framework HTTP, API REST y archivos estáticos del frontend.
-Frontend: HTML, CSS y JavaScript nativos, sin framework adicional.
+2. SECRETOS
+.env y .env.integracion son privados; .example son plantillas sin secretos.
+JWT_SECRET: clave privada local de J, aleatoria, mínimo 32 bytes.
+CLIENTES_JWT_SECRET: clave HS256 acordada con F, mínimo 32 bytes.
+No copiar claves predeterminadas ni publicar credenciales en Git.
+.artifacts/credenciales-modulos.json, bases y Secret reales quedan excluidos.
+Base64 en Kubernetes Secret no es cifrado.
 
-3. BIBLIOTECAS
-Dependencias declaradas en package.json:
-- express ^5.1.0: rutas HTTP y API REST.
-- amqplib ^0.10.9: conexión AMQP, publicación y consumo RabbitMQ.
-- jsdom ^29.1.1: dependencia de desarrollo para pruebas del frontend.
-Las versiones exactas instaladas están fijadas en package-lock.json.
+3. AUTENTICACIÓN DE USUARIOS
+USER_AUTH_MODE=clientes: login delegado a F y validación de JWT externos.
+USER_AUTH_MODE=local: demostración independiente, no integración central certificada.
+No hay fallback automático de F hacia cuentas locales.
+CLIENTES_JWT_ISSUER: emisor exacto acordado con F, obligatorio en modo clientes.
+CLIENTES_JWT_AUDIENCE: opcional; debe coincidir si se configura.
+Claims requeridos: sub no vacío, iat, exp, iss y role o rol firmado.
+Si aparecen role y rol deben coincidir. Algoritmo admitido: HS256.
+Roles: cliente, operador, administrador. Solo administrador usa las APIs de bandeja.
+Cliente y operador reciben 403. No se acepta como autenticación un rol del cuerpo.
+Token ausente, vencido, alterado, emisor incorrecto o claims incompletos: 401.
+El ZIP (3) de F aún no firma rol ni emisor. Se rechaza ese token sin inventar datos.
+Ver docs/INTEGRACION-CLIENTES.md para los cambios que F debe confirmar.
 
-Módulos integrados de Node.js:
-- node:sqlite: base de datos SQLite mediante DatabaseSync.
-- node:crypto: SHA-256 para deduplicar eventos.
-- node:fs y node:fs/promises: lectura y gestión de archivos.
-- node:path y node:url: resolución de rutas.
-- node:test y node:assert/strict: ejecución y validación de pruebas.
-- node:os: directorio temporal utilizado en pruebas.
+4. ENDPOINTS
+GET / y archivos web: públicos, formulario sin información privada.
+GET /health/live: público, proceso HTTP.
+GET /health/ready: público; consumidor conectado=200, desconectado=503.
+POST /api/auth/login: público limitado, JSON username/password.
+En modo clientes envía usuario/password a auth.login de F.
+Devuelve access_token, token_type, expires_in, expiresAt, inactivitySeconds y role.
+GET /api/auth/session: administrador autenticado.
+POST /api/auth/logout: autenticado; revocación en J y eliminación de cookie.
+GET /api/notificaciones, /cliente/:clienteId, /:id: administrador.
+PATCH /api/notificaciones/:id/leida: administrador; cambia lectura.
+POST /api/auth/module-login: cuentas técnicas locales, opcional.
+POST /api/eventos: cuenta técnica local autorizada para el evento.
+400 JSON/contrato inválido; 401 autenticación; 403 permiso; 404 recurso;
+429 limitación de login; 503 dependencia de autenticación no disponible.
 
-4. HERRAMIENTAS Y SERVICIOS
-npm: instalación de dependencias y ejecución de scripts.
-Docker y Docker Compose: construcción y despliegue en contenedores.
-Imagen de aplicación: node:24-bookworm-slim.
-RabbitMQ: mensajería asincrónica; imagen rabbitmq:4.2-management.
-RabbitMQ Management: panel administrativo del broker.
-PowerShell: comandos de ejecución y comprobación en Windows.
+5. SESIONES Y CUENTAS
+Authorization: Bearer <JWT> en API. Panel: cookie HttpOnly/SameSite Strict.
+AUTH_SECURE_COOKIE=false solo para HTTP local; true para HTTPS.
+AUTH_IDLE_SECONDS=1800; AUTH_LIFETIME_SECONDS=28800; no extiende el exp de F.
+Logout de J no es cierre global en todos los microservicios.
+Las contraseñas locales usan scrypt y sal; no hay registro público.
+scripts/manage-access.js bootstrap | rotate <cuenta> | disable <cuenta>.
+Bootstrap no sobreescribe las cuentas existentes ni cambia sus contraseñas.
 
-5. PUERTOS
-API REST y frontend:
-- Puerto interno del contenedor: 3000/TCP.
-- Puerto externo usado en este computador: 3010/TCP.
-- URL local usada: http://localhost:3010/.
-- Compose local y .env.example: puerto externo predeterminado 3000.
-- Compose de integración: puerto externo predeterminado 3010.
-- HOST_PORT permite cambiar el puerto externo; PORT controla Node local.
+6. RABBITMQ: CONTROL DISTINTO DE HTTP
+RABBITMQ_URL: URL privada broker/vhost. RABBITMQ_REQUIRE_TLS=true exige AMQPS.
+Se valida certificado TLS. No usar el JWT de usuario como contraseña del broker.
+RABBITMQ_AUTH_RPC_ENABLED=true activa el login de módulos en integración/Kubernetes.
+RABBITMQ_REQUIRE_EVENT_JWT=false conserva la integración de eventos sin exigir JWT.
+El administrador del broker debe limitar publicación y consumo por cuenta técnica.
+Una cuenta administradora compartida entre grupos no permite aislar productores.
+J valida exchange, clave y contrato; no lee colas de operaciones de otros servicios.
+Cada módulo tiene una cuenta de aplicación individual creada por J y recibe
+solo sus credenciales por canal privado. No compartir administrador ni el JSON.
+RABBITMQ_AUTH_RPC_ENABLED controla AUTH_RPC_QUEUE=notificaciones.auth.login.
+RABBITMQ_REQUIRE_EVENT_JWT=true es independiente: exige
+headers.Authorization="Bearer <JWT técnico de J>" en cada evento.
+Coordinar esa exigencia con productores; no sustituye el JWT de usuarios de F.
+examples/LOGIN-RABBITMQ.md documenta esta extensión opcional.
 
-RabbitMQ:
-- 5672/TCP: conexión AMQP de productores y consumidores.
-- 15672/TCP: panel administrativo en http://localhost:15672/.
-Los puertos del Compose están publicados en 127.0.0.1.
+7. FUENTES, CONTRATOS Y PERSISTENCIA
+RABBITMQ_SOURCES:
+pedidos_exchange fanout: PedidoCreado.
+pagos_exchange topic pago.aprobado/pago.rechazado: PagoAprobado/PagoRechazado.
+inventario_exchange fanout: InventarioInsuficiente.
+facturacion_exchange fanout: FacturaGenerada.
+RABBITMQ_QUEUE=grupo-j.notificaciones. DLQ propia .errores y exchange .errores.exchange.
+RABBITMQ_PREFETCH=10; RABBITMQ_RECONNECT_MS=5000; RABBITMQ_HEARTBEAT=30.
+RABBITMQ_MAX_MESSAGE_BYTES=262144.
+evento, clienteId/pedidoId enteros positivos y fecha ISO obligatorios.
+PedidoCreado: total no negativo y productos con productoId/cantidad/precio.
+ACK posterior al guardado durable. JSON/origen inválido: DLQ. Duplicados: no recrear.
+Fallo de base de datos solicita reentrega, no descarte.
+Notificacion conserva datos/lectura; EmailJob conserva reintentos/estado de correo.
 
-SQLite:
-- No utiliza puerto de red; es una base embebida en un archivo.
+8. CONSULTAS A CLIENTES
+CLIENTES_RABBITMQ_URL opcional, usa RABBITMQ_URL si está vacío.
+CLIENTES_RPC_LOGIN_QUEUE=auth.login; JSON {"usuario":"...","password":"..."}.
+Respuesta F actual: status=200 y data.token/data.expira_en_segundos.
+CLIENTES_RPC_USERNAME/PASSWORD: cuenta técnica que F asigna a J, privada.
+CLIENTES_RPC_QUEUE=cliente.consultar; JSON {"id":<clienteId>} con JWT de F.
+Respuesta: status=200, data.id, data.estado=1, data.correo válido.
+CLIENTES_RPC_TIMEOUT_MS=10000; replyTo temporal, correlationId, TTL y mandatory.
+Token cacheado, renueva una vez tras 401; no hay respaldo anónimo.
+Esta conexión de datos no otorga rol administrativo a usuarios.
 
-MySQL:
-- No está conectado ni es necesario para ejecutar esta versión.
-- database/mysql/001_notificacion.sql es un esquema de referencia.
-- Si el equipo migra a MySQL, debe confirmar host, puerto y credenciales.
+9. SMTP
+EMAIL_ENABLED=true activa trabajos para notificaciones nuevas.
+SMTP_HOST=smtp.gmail.com; SMTP_PORT=587; SMTP_SECURE=false con STARTTLS obligatorio.
+SMTP_USER, SMTP_PASSWORD, SMTP_FROM se configuran en privado.
+EMAIL_INTERVAL_MS=5000; EMAIL_MAX_ATTEMPTS=5; espera creciente.
+Estados: pendiente, aceptado por proveedor, fallido, no programado.
+accepted no confirma entrega ni lectura. No se garantiza envío exactamente una vez.
+El fallo de Clientes/SMTP no elimina la notificación.
 
-6. BASE DE DATOS ACTIVA
-Motor: SQLite mediante node:sqlite.
-Ruta local predeterminada: ./data/notificaciones.sqlite.
-Ruta en Docker: /app/data/notificaciones.sqlite.
-Volumen Docker: notificaciones_data.
-Tabla: Notificacion.
-Referencias lógicas: Cliente_id y Pedido_id.
-Los eventos y la API conservan los nombres clienteId y pedidoId.
+10. KUBERNETES
+k8s/: Namespace ecommerce, ConfigMap, PVC, Deployment y Service ClusterIP.
+k8s/templates/secret.example.yaml: plantilla, nunca aplicar sin completar en privado.
+scripts/prepare-k8s-secret.js genera Secret privado desde el entorno.
+Imagen grupo-j-notificaciones:2.0.0. Cargar en Minikube o publicar en registro propio.
+Deployment: una réplica, estrategia Recreate por SQLite y worker único.
+PVC 1Gi conserva datos entre Pods; no borrarlo durante la recuperación.
+Startup/liveness: /health/live; readiness: /health/ready. Puerto 3000.
+Service DNS: notificaciones.ecommerce.svc.cluster.local:3000.
+kubectl -n ecommerce port-forward service/notificaciones 3020:3000
+k8s/lab: modo local, correo apagado, cola grupo-j.notificaciones.laboratorio,
+exchange grupo-j.laboratorio.eventos. No compite con las colas del negocio.
+scripts/verify-k8s.js prueba API/Service, evento real aislado, eliminación y reemplazo
+del Pod de laboratorio y persistencia. No garantiza recuperación de toda operación.
+Ver docs/KUBERNETES.md para comandos y perfil.
 
-7. CONFIGURACIÓN RABBITMQ
-Exchange predeterminado: comercio.eventos, tipo topic, durable.
-Cola: grupo-j.notificaciones, durable.
-Eventos consumidos y routing keys predeterminadas:
-PedidoCreado, PagoAprobado, PagoRechazado, FacturaGenerada,
-InventarioInsuficiente.
-Cola de errores: grupo-j.notificaciones.errores.
-Exchange de errores: grupo-j.notificaciones.errores.exchange.
-Prefetch: 10. Pausa de reconexión: 5000 milisegundos.
-Confirmación manual ACK después del almacenamiento correcto.
-Los nombres y contratos deben coordinarse con los otros grupos.
+11. POSTMAN, VERIFICACIÓN Y ENTREGA
+postman/Notificaciones-Seguridad.postman_collection.json: siete casos obligatorios,
+login correcto, contraseña incorrecta y usuario inexistente.
+postman/Local.postman_environment.json: plantilla sin tokens ni contraseñas reales.
+Para integración usar cuenta real de F, JWT de operador y JWT realmente vencido.
+No entregar a consumidores la clave de firma para fabricar tokens.
+scripts/verify-postman-lab.js ejecuta la colección con emisor controlado simulado.
+Evidencias sin secretos: .artifacts/evidencias. No certifican servicios no probados.
+npm test: pruebas de JWT, APIs, roles, persistencia, RPC y frontend.
+node scripts/check-manifests.js: validación estructural YAML.
+node --env-file=.env.integracion --test tests/integration/*.test.js
+Las pruebas RabbitMQ usan recursos aislados; no disparan pedidos/pagos reales.
+ZIP/Git excluyen .env, datos, credenciales, herramientas y artefactos privados.
+docs/LABORATORIO.md relaciona fases, resultados y dependencias pendientes.
 
-8. ARCHIVOS Y VARIABLES
-.env.example: plantilla para la ejecución local.
-.env.integracion.example: plantilla para el broker compartido.
-Variables principales: PORT, HOST_PORT, DATABASE_PATH, RABBITMQ_URL,
-RABBITMQ_EXCHANGE, RABBITMQ_EXCHANGE_TYPE, RABBITMQ_QUEUE,
-RABBITMQ_BINDINGS, RABBITMQ_PREFETCH y RABBITMQ_RECONNECT_MS.
-RABBITMQ_PASSWORD permite personalizar la contraseña del broker local.
-Los archivos .env con valores locales no se incluyen en el ZIP.
 
-9. EJECUCIÓN Y PRUEBAS
-Con Docker: docker compose up -d --build
-Para usar puerto 3010, copiar .env.example a .env y poner HOST_PORT=3010.
-Frontend: http://localhost:3010/ (o el puerto externo configurado).
-API: /api/notificaciones
-Instalación local: npm ci
-Ejecución local: npm start (requiere RabbitMQ disponible).
-Pruebas locales: npm test
-Integración con RabbitMQ: npm run test:integration
-Publicar ejemplo: npm run publish -- examples/PedidoCreado.json
-
-10. ALCANCE
-La versión ejecutable incluye API, bandeja web, SQLite y consumidor RabbitMQ.
-MySQL conectado, correo SMTP y autenticación por cliente no están implementados.
-Este archivo describe la configuración; las variables ejecutables se definen
-en las plantillas .env y en los archivos Docker Compose.
+WORKERS RPC: ACTUALIZACION DE CONTRATO
+AUTH_MODULE_LIFETIME_SECONDS=1800 limita a 30 minutos los tokens tecnicos de J.
+RABBITMQ_AUTH_RPC_ENABLED=true habilita notificaciones.auth.login y notificaciones.eventos.
+Formato de Clientes: usuario/password -> status/data.token/tipo/expira_en_segundos.
+La cola de eventos RPC exige JWT y responde 401/403; el cliente renueva una sola vez tras 401.
+Los exchanges compartidos conservan RABBITMQ_REQUIRE_EVENT_JWT=false hasta coordinar productores.
+Las credenciales de cada publicador van en .env.worker, usando examples/.env.worker.example.
+Usar NotificacionesRpc.fromEnv().send(evento); no copiar tokens manualmente.
+Detalles y limites en examples/LOGIN-RABBITMQ.md. El panel administrativo sigue separado.

@@ -1,0 +1,51 @@
+{# Macros de diseño: ilustración del producto según su nombre (solo presentación) #}
+{% macro arte(id, nombre) -%}
+{%- set pal = [['#EDEFFA','#01036B','#F8BB14'], ['#F8BB14','#01036B','#FFFFFF'], ['#01036B','#F8BB14','#FFFFFF']][id % 3] -%}
+{%- set n = (nombre or '') | lower -%}
+<div class="pic-bg" style="background:{{ pal[0] }}">
+<svg viewBox="0 0 100 100" fill="{{ pal[1] }}" stroke="{{ pal[2] }}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+{%- if 'portátil' in n or 'portatil' in n or 'laptop' in n or 'notebook' in n -%}
+<rect x="20" y="24" width="60" height="40" rx="3"/><path d="M8 72h84l-6 8H14Z"/>
+{%- elif 'mouse' in n or 'ratón' in n or 'raton' in n -%}
+<rect x="32" y="12" width="36" height="76" rx="18"/><path d="M50 12v28M32 40h36" fill="none"/>
+{%- elif 'teclado' in n -%}
+<rect x="8" y="30" width="84" height="40" rx="4"/><path d="M18 42h4M30 42h4M42 42h4M54 42h4M66 42h4M78 42h4M22 56h56" fill="none"/>
+{%- elif 'monitor' in n or 'pantalla' in n -%}
+<rect x="10" y="16" width="80" height="52" rx="3"/><path d="M40 68l-4 14h28l-4-14M30 84h40"/>
+{%- elif 'audífono' in n or 'audifono' in n or 'auricular' in n -%}
+<path d="M18 62V50a32 32 0 0 1 64 0v12" fill="none" stroke="{{ pal[1] }}" stroke-width="6"/><rect x="12" y="58" width="16" height="28" rx="6"/><rect x="72" y="58" width="16" height="28" rx="6"/>
+{%- elif 'ssd' in n or 'disco' in n -%}
+<rect x="14" y="26" width="72" height="48" rx="6"/><circle cx="30" cy="40" r="4" fill="none"/><path d="M30 62h40" fill="none"/>
+{%- elif 'camiseta' in n or 'jersey' in n -%}
+<path d="M32 12 8 26l10 20 10-5v49h44V41l10 5 10-20-24-14Q50 32 32 12Z"/>
+{%- elif 'balón' in n or 'balon' in n -%}
+<circle cx="50" cy="50" r="38"/><path d="M50 32l16 12-6 19H40l-6-19Z"/>
+{%- else -%}
+<rect x="22" y="22" width="56" height="56" rx="6"/><circle cx="50" cy="50" r="9" fill="none"/>
+{%- endif -%}
+</svg></div>
+{%- endmacro %}
+
+{# Línea del carrito (se usa en el cajón y en la vista completa) #}
+{% macro linea(l, cliente, arte) -%}
+<article class="it">
+  <div class="it-img">{{ arte(l.id, l.nombre) }}</div>
+  <div>
+    <h4>{{ l.nombre }}</h4>
+    <p class="mut">{{ l.precio | cop }} c/u</p>
+    <p class="mut">Cantidad: <strong>{{ l.cantidad }}</strong></p>
+    <form class="en-linea mas" method="post" action="/cliente/{{ cliente.id }}/agregar" data-mantener>
+      <input type="hidden" name="producto_id" value="{{ l.id }}">
+      <input type="hidden" name="cantidad" value="1">
+      <button class="mini" type="submit" aria-label="Agregar una unidad de {{ l.nombre }}">+ Agregar una más</button>
+    </form>
+  </div>
+  <div class="it-r">
+    <strong>{{ l.subtotal | cop }}</strong>
+    <form class="en-linea" method="post" action="/cliente/{{ cliente.id }}/quitar" data-mantener>
+      <input type="hidden" name="producto_id" value="{{ l.id }}">
+      <button class="lnk" type="submit" aria-label="Quitar {{ l.nombre }}">Quitar</button>
+    </form>
+  </div>
+</article>
+{%- endmacro %}

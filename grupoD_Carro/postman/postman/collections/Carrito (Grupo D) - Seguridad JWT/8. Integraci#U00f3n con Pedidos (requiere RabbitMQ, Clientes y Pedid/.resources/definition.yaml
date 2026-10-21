@@ -1,0 +1,3 @@
+$kind: collection
+name: 8. Integración con Pedidos (requiere RabbitMQ, Clientes y Pedidos activos)
+order: 8000
