@@ -140,3 +140,4 @@ def ajustar(producto_id: int, ajuste: Ajuste, db=Depends(get_db)):
         return ajustar_cantidad(db, producto_id, ajuste.cantidad, ajuste.motivo)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    
