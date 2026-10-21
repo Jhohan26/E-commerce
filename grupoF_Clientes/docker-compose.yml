@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      # MySQL corriendo en tu Windows (fuera de Docker)
+      DB_HOST: host.docker.internal
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["python", "worker.py"]
+    env_file: .env
+    environment:
+      DB_HOST: host.docker.internal
+    restart: unless-stopped
