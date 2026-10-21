@@ -29,14 +29,25 @@ PEDIDOS_URL = os.getenv("PEDIDOS_URL", "http://localhost:3000").rstrip("/")
 PRODUCTOS_URL = os.getenv("PRODUCTOS_URL", "").rstrip("/")    # sin valor por defecto: no se adivina el puerto
 INVENTARIO_URL = os.getenv("INVENTARIO_URL", "").rstrip("/")  # idem (el README de Inventario sugiere el puerto 8005)
 CLIENTES_RPC = os.getenv("CLIENTES_MODO", "rpc" if AMQP_URL else "http") == "rpc"
+# Productos publicó su API como RPC por RabbitMQ (colas producto.consultar / productos.listar).
+# Con PRODUCTOS_MODO=http se usa PRODUCTOS_URL (API web) en su lugar.
+PRODUCTOS_RPC = os.getenv("PRODUCTOS_MODO", "rpc" if AMQP_URL else "http") == "rpc"
 # Clientes no publica eventos: este respaldo vuelve a pedirle sus datos cada N segundos (0 = apagado).
 REFRESCO_SEG = int(os.getenv("REFRESCO_SEG", "300"))
+# Pedidos exige "Authorization: Bearer <JWT>" con rol operador o administrador (el rol cliente solo ve sus pedidos).
+# Si no se fija PEDIDOS_TOKEN, Reportes pide uno a POST {PEDIDOS_URL}/api/auth/token y lo renueva al vencer.
+PEDIDOS_TOKEN = os.getenv("PEDIDOS_TOKEN", "")
+PEDIDOS_ROL = os.getenv("PEDIDOS_ROL", "operador")
 
 EXCHANGE_PEDIDOS = os.getenv("AMQP_EXCHANGE_PEDIDOS", "pedidos_exchange")
 COLA_PEDIDOS = os.getenv("AMQP_QUEUE_PEDIDOS", "reportes_pedidos_queue")
 COLA_PAGOS = os.getenv("AMQP_QUEUE_PAGOS", "reportes_pagos_queue")
 COLA_INVENTARIO = os.getenv("AMQP_QUEUE_INVENTARIO", "reportes_inventario_queue")
 EXCHANGE_INVENTARIO = os.getenv("AMQP_EXCHANGE_INVENTARIO", "inventario_exchange")   # fanout, lo declara Inventario
+COLA_FACTURACION = os.getenv("AMQP_QUEUE_FACTURACION", "reportes_facturacion_queue")
+EXCHANGE_FACTURACION = os.getenv("AMQP_EXCHANGE_FACTURACION", "facturacion_exchange")  # fanout, lo declara Facturación
+COLA_RPC_PEDIDOS = cliente_rpc.COLA_PEDIDOS                  # worker opcional de Pedidos (RPC)
+COLA_RPC_INVENTARIO = cliente_rpc.COLA_INVENTARIO_LISTAR     # worker opcional de Inventario (RPC)
 # Pagos usa ecommerce.eventos (topic); Facturación espera pagos_exchange (fanout). Se enlaza al que exista.
 EXCHANGES_PAGOS = [x.strip() for x in os.getenv("AMQP_EXCHANGES_PAGOS", "ecommerce.eventos,pagos_exchange").split(",") if x.strip()]
 CLAVES_PAGOS = ("pago.aprobado", "pago.rechazado")  # las ignora un exchange fanout
@@ -55,16 +66,18 @@ estado = {
 	"clientes": _nuevo("Clientes", "RabbitMQ · worker de Clientes" if CLIENTES_RPC else CLIENTES_URL),
 	"pedidos": _nuevo("Pedidos (API)", PEDIDOS_URL),
 	"rabbit": _nuevo("Pedidos y pagos en vivo", "RabbitMQ"),
-	"productos": _nuevo("Productos (API)", PRODUCTOS_URL or "sin dirección"),
+	"productos": _nuevo("Productos", "RabbitMQ · worker de Productos" if PRODUCTOS_RPC else (PRODUCTOS_URL or "sin dirección")),
 	"inventario": _nuevo("Inventario (API)", INVENTARIO_URL or "sin dirección"),
 }
-for _clave, _var, _url in (("productos", "PRODUCTOS_URL", PRODUCTOS_URL), ("inventario", "INVENTARIO_URL", INVENTARIO_URL)):
+for _clave, _var, _url in (("productos", "PRODUCTOS_URL", PRODUCTOS_URL or PRODUCTOS_RPC), ("inventario", "INVENTARIO_URL", INVENTARIO_URL)):
 	if not _url:
 		estado[_clave].update(estado="sin_configurar", detalle=f"Falta poner la dirección del servicio en {_var} del archivo .env")
 if not AMQP_URL:
 	estado["rabbit"].update(estado="sin_configurar", detalle="Falta AMQP_URL en el archivo .env")
 	if CLIENTES_RPC:
 		estado["clientes"].update(estado="sin_configurar", detalle="Falta AMQP_URL en el archivo .env")
+	if PRODUCTOS_RPC:
+		estado["productos"].update(estado="sin_configurar", detalle="Falta AMQP_URL en el archivo .env")
 
 _enlazados: set = set()
 
@@ -89,11 +102,37 @@ def _motivo(e: Exception, url: str, nombre: str) -> str:
 		return f"{nombre} tardó demasiado en responder ({url})"
 	if isinstance(e, requests.ConnectionError):
 		return f"No responde en {url}. ¿Está encendido el servicio de {nombre} y es correcta la dirección?"
+	if isinstance(e, requests.HTTPError) and e.response.status_code in (401, 403):
+		return f"{nombre} rechazó el token JWT de Reportes (error {e.response.status_code}). Revisa el token o el rol en el .env"
 	if isinstance(e, requests.HTTPError):
 		return f"{nombre} respondió con error {e.response.status_code} en {url}"
 	if isinstance(e, (ValueError, KeyError, TypeError, AttributeError)):
 		return f"{nombre} respondió con un formato que Reportes no entiende ({type(e).__name__})"
 	return f"Error inesperado al consultar {nombre}: {type(e).__name__}"
+
+
+# ---------- ¿hay un worker RPC atendiendo una cola? ----------
+_cache_workers: dict = {}
+
+
+def _worker_activo(cola: str) -> bool:
+	"""True si hay un worker atendiendo esa cola en RabbitMQ (consulta pasiva; se recuerda 60 s).
+	Así Reportes usa el worker de Pedidos/Inventario en cuanto exista, sin tocar la configuración."""
+	if not AMQP_URL:
+		return False
+	hasta, valor = _cache_workers.get(cola, (0.0, False))
+	if time.time() < hasta:
+		return valor
+	try:
+		conn = pika.BlockingConnection(_parametros())
+		try:
+			valor = conn.channel().queue_declare(queue=cola, passive=True).method.consumer_count > 0
+		finally:
+			conn.close()
+	except Exception:           # la cola no existe todavía o no hay conexión
+		valor = False
+	_cache_workers[cola] = (time.time() + 60, valor)
+	return valor
 
 
 # ---------- Clientes ----------
@@ -152,17 +191,54 @@ def _cargar_rest(clave: str, base: str, ruta: str, guardar, nombre: str, variabl
 	return len(lista)
 
 
-def cargar_pedidos() -> int:
-	"""GET /api/pedidos y, por cada pedido, GET /api/pedidos/{id} (trae los productos)."""
-	try:
-		r = requests.get(f"{PEDIDOS_URL}/api/pedidos", timeout=10)
+_token_pedidos = {"valor": PEDIDOS_TOKEN, "hasta": float("inf") if PEDIDOS_TOKEN else 0.0}
+
+
+def _cabecera_pedidos(renovar: bool = False) -> dict:
+	"""Header Authorization para la API de Pedidos; pide un token nuevo si no hay o ya venció."""
+	t = _token_pedidos
+	if renovar or not t["valor"] or time.time() >= t["hasta"]:
+		r = requests.post(f"{PEDIDOS_URL}/api/auth/token", json={"role": PEDIDOS_ROL, "sub": "reportes"}, timeout=10)
 		r.raise_for_status()
-		datos = r.json()
+		d = r.json()
+		t["valor"] = d["token"]
+		t["hasta"] = time.time() + max(int(d.get("expiraEnSegundos", 1800)) - 60, 30)
+	return {"Authorization": f"Bearer {t['valor']}"}
+
+
+def _get_pedidos(ruta: str):
+	"""GET autenticado a Pedidos. Ante un 401 (token vencido) pide otro token y reintenta una vez."""
+	r = requests.get(f"{PEDIDOS_URL}{ruta}", headers=_cabecera_pedidos(), timeout=10)
+	if r.status_code == 401:
+		r = requests.get(f"{PEDIDOS_URL}{ruta}", headers=_cabecera_pedidos(renovar=True), timeout=10)
+	r.raise_for_status()
+	return r.json()
+
+
+def cargar_pedidos() -> int:
+	"""Por RabbitMQ (worker de Pedidos) si está activo; si no, GET /api/pedidos y GET /api/pedidos/{id} (trae los productos)."""
+	if _worker_activo(COLA_RPC_PEDIDOS):
+		try:
+			lista = cliente_rpc.listar_pedidos()
+			for p in lista:
+				almacen.guardar_pedido(dict(pedidoId=p["id"], clienteId=p["clienteId"], fecha=p["fecha"],
+											total=p["total"], productos=p.get("productos", [])), p.get("estado"))
+		except cliente_rpc.ClientesError as e:
+			_estado("pedidos", "error", e.detalle)
+			raise FuenteError(502, e.detalle)
+		except Exception as e:
+			d = f"Pedidos respondió algo que Reportes no entiende ({type(e).__name__})"
+			_estado("pedidos", "error", d)
+			raise FuenteError(502, d)
+		estado["pedidos"]["via"] = "RabbitMQ · worker de Pedidos"
+		_estado("pedidos", "ok", cantidad=len(lista))
+		return len(lista)
+	estado["pedidos"]["via"] = PEDIDOS_URL
+	try:
+		datos = _get_pedidos("/api/pedidos")
 		lista = datos if isinstance(datos, list) else datos.get("pedidos", [])
 		for resumen in lista:
-			r = requests.get(f"{PEDIDOS_URL}/api/pedidos/{resumen['id']}", timeout=10)
-			r.raise_for_status()
-			d = r.json()
+			d = _get_pedidos(f"/api/pedidos/{resumen['id']}")
 			p = d.get("pedido", d)
 			almacen.guardar_pedido(dict(pedidoId=p["id"], clienteId=p["clienteId"], fecha=p["fecha"],
 										total=p["total"], productos=p.get("productos", [])), p.get("estado"))
@@ -175,12 +251,44 @@ def cargar_pedidos() -> int:
 
 
 def cargar_productos() -> int:
-	"""GET {PRODUCTOS_URL}/api/productos -> catálogo (id, nombre, categoria, precio)."""
+	"""Catálogo (id, nombre, categoria, precio): por RabbitMQ (productos.listar) o por GET {PRODUCTOS_URL}/api/productos."""
+	if PRODUCTOS_RPC:
+		try:
+			lista = cliente_rpc.listar_productos()
+			almacen.reemplazar_productos(lista)
+		except cliente_rpc.ClientesError as e:
+			_estado("productos", "error", e.detalle)
+			raise FuenteError(502, e.detalle)
+		except Exception as e:
+			d = f"Productos respondió algo que Reportes no entiende ({type(e).__name__})"
+			_estado("productos", "error", d)
+			raise FuenteError(502, d)
+		_estado("productos", "ok", cantidad=len(lista))
+		return len(lista)
 	return _cargar_rest("productos", PRODUCTOS_URL, "/api/productos", almacen.reemplazar_productos, "Productos", "PRODUCTOS_URL")
 
 
 def cargar_inventario() -> int:
-	"""GET {INVENTARIO_URL}/api/inventario -> existencias por producto."""
+	"""Existencias por producto: por RabbitMQ (worker de Inventario) si está activo; si no, GET {INVENTARIO_URL}/api/inventario."""
+	if _worker_activo(COLA_RPC_INVENTARIO):
+		try:
+			lista = cliente_rpc.listar_inventario()
+			almacen.reemplazar_inventario(lista)
+		except cliente_rpc.ClientesError as e:
+			_estado("inventario", "error", e.detalle)
+			raise FuenteError(502, e.detalle)
+		except Exception as e:
+			d = f"Inventario respondió algo que Reportes no entiende ({type(e).__name__})"
+			_estado("inventario", "error", d)
+			raise FuenteError(502, d)
+		estado["inventario"]["via"] = "RabbitMQ · worker de Inventario"
+		_estado("inventario", "ok", cantidad=len(lista))
+		return len(lista)
+	if not INVENTARIO_URL:
+		d = "Falta la dirección de su API en INVENTARIO_URL del archivo .env, o que Inventario publique un worker por RabbitMQ (cola inventario.listar)"
+		_estado("inventario", "sin_configurar", d)
+		raise FuenteError(503, d)
+	estado["inventario"]["via"] = INVENTARIO_URL
 	return _cargar_rest("inventario", INVENTARIO_URL, "/api/inventario", almacen.reemplazar_inventario, "Inventario", "INVENTARIO_URL")
 
 
@@ -217,7 +325,7 @@ def aplicar_evento(d: dict) -> None:
 				except FuenteError:
 					pass
 			desconocido = any(x["productoId"] not in almacen.productos for x in d.get("productos", []))
-			if PRODUCTOS_URL and desconocido and time.time() - _ultimo_intento_productos > 60:
+			if (PRODUCTOS_RPC or PRODUCTOS_URL) and desconocido and time.time() - _ultimo_intento_productos > 60:
 				_ultimo_intento_productos = time.time()           # producto desconocido: se relee el catálogo (máx. 1 vez/min)
 				try:
 					cargar_productos()
@@ -225,9 +333,13 @@ def aplicar_evento(d: dict) -> None:
 					pass
 		elif ev in ("PagoAprobado", "PagoRechazado"):
 			almacen.registrar_pago(pid, ev == "PagoAprobado")
+		elif ev == "FacturaGenerada":
+			almacen.registrar_factura(d)
 		elif ev in ("InventarioActualizado", "InventarioInsuficiente"):
+			if ev == "InventarioInsuficiente":       # Pedidos cancela ese pedido por falta de existencias
+				almacen.registrar_sin_stock(pid)
 			# el evento solo avisa que el stock cambió: se vuelve a leer la API de Inventario
-			if INVENTARIO_URL:
+			if INVENTARIO_URL or _worker_activo(COLA_RPC_INVENTARIO):
 				try:
 					cargar_inventario()
 				except FuenteError:
@@ -241,15 +353,18 @@ def aplicar_evento(d: dict) -> None:
 # ---------- RabbitMQ en vivo ----------
 # cola propia -> (exchanges candidatos, claves de enlace). Solo se enlazan los que YA existen: no se crean.
 _ENLACES = {COLA_PAGOS: (EXCHANGES_PAGOS, CLAVES_PAGOS),
-			COLA_INVENTARIO: ([EXCHANGE_INVENTARIO], ("",))}
+			COLA_INVENTARIO: ([EXCHANGE_INVENTARIO], ("",)),
+			COLA_FACTURACION: ([EXCHANGE_FACTURACION], ("",))}
 
 
 def _detalle_rabbit() -> str:
 	pagos = any((COLA_PAGOS, ex) in _enlazados for ex in EXCHANGES_PAGOS)
 	inv = (COLA_INVENTARIO, EXCHANGE_INVENTARIO) in _enlazados
+	fac = (COLA_FACTURACION, EXCHANGE_FACTURACION) in _enlazados
 	return ("Escuchando pedidos · "
-			+ ("pagos enlazados" if pagos else "pagos: esperando que el grupo de Pagos cree su exchange") + " · "
-			+ ("inventario enlazado" if inv else "inventario: esperando que ese grupo cree su exchange"))
+			+ ("pagos enlazados" if pagos else "pagos: esperando su exchange") + " · "
+			+ ("inventario enlazado" if inv else "inventario: esperando su exchange") + " · "
+			+ ("facturación enlazada" if fac else "facturación: esperando su exchange"))
 
 
 def _enlazar_opcionales(conn):
@@ -308,11 +423,13 @@ def _escuchar():
 	ch.queue_bind(queue=COLA_PEDIDOS, exchange=EXCHANGE_PEDIDOS)
 	ch.queue_declare(queue=COLA_PAGOS, durable=True)
 	ch.queue_declare(queue=COLA_INVENTARIO, durable=True)
+	ch.queue_declare(queue=COLA_FACTURACION, durable=True)
 	_enlazar_opcionales(conn)
 	ch.basic_qos(prefetch_count=1)
 	ch.basic_consume(queue=COLA_PEDIDOS, on_message_callback=_al_recibir)
 	ch.basic_consume(queue=COLA_PAGOS, on_message_callback=_al_recibir)
 	ch.basic_consume(queue=COLA_INVENTARIO, on_message_callback=_al_recibir)
+	ch.basic_consume(queue=COLA_FACTURACION, on_message_callback=_al_recibir)
 	log.info("Escuchando '%s', '%s' y '%s'", COLA_PEDIDOS, COLA_PAGOS, COLA_INVENTARIO)
 	ch.start_consuming()
 
