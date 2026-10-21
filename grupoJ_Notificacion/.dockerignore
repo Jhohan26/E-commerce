@@ -7,3 +7,5 @@ coverage
 .artifacts
 entregables
 *.zip
+
+.env.worker

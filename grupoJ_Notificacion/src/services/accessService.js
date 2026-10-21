@@ -12,9 +12,10 @@ export class AccessError extends Error {
   constructor(message = 'Sesión inválida o vencida', status = 401) { super(message); this.status = status; }
 }
 export class AccessService {
-  constructor(db, { secret, idleSeconds = 1800, lifetimeSeconds = 28800, secureCookie = false }, clock = () => Date.now()) {
+  constructor(db, { secret, idleSeconds = 1800, lifetimeSeconds = 28800,
+    moduleLifetimeSeconds = Math.min(1800, lifetimeSeconds), secureCookie = false }, clock = () => Date.now()) {
     if (!secret || Buffer.byteLength(secret) < 32) throw new Error('JWT_SECRET debe tener al menos 32 bytes');
-    Object.assign(this, { db, secret, idleSeconds, lifetimeSeconds, secureCookie, clock });
+    Object.assign(this, { db, secret, idleSeconds, lifetimeSeconds, moduleLifetimeSeconds, secureCookie, clock });
     db.exec(`CREATE TABLE IF NOT EXISTS ModuleAccount (
       username TEXT PRIMARY KEY, salt TEXT NOT NULL, passwordHash TEXT NOT NULL,
       role TEXT NOT NULL, events TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1);
@@ -60,12 +61,13 @@ export class AccessService {
     this.db.prepare('DELETE FROM LoginThrottle WHERE key=?').run(`user:${username}`);
     this.db.prepare('DELETE FROM AccessSession WHERE expires<=? OR lastActivity<=?').run(now, now - this.idleSeconds * 1000);
     const id = randomUUID();
-    const expires = now + this.lifetimeSeconds * 1000;
+    const ttl = account.role === 'module' ? this.moduleLifetimeSeconds : this.lifetimeSeconds;
+    const expires = now + ttl * 1000;
     this.db.prepare('INSERT INTO AccessSession VALUES (?,?,?,?)').run(id, username, now, expires);
     const token = jwt.sign({ sub: username, role: account.role === 'admin' ? 'administrador' : 'module',
       jti: id, iat: Math.floor(now / 1000) }, this.secret,
-      { algorithm: 'HS256', issuer, audience, expiresIn: this.lifetimeSeconds });
-    return { token, expiresAt: new Date(expires).toISOString(), idleSeconds: this.idleSeconds, role: account.role };
+      { algorithm: 'HS256', issuer, audience, expiresIn: ttl });
+    return { token, expiresAt: new Date(expires).toISOString(), expiresIn: ttl, idleSeconds: this.idleSeconds, role: account.role };
   }
   authenticate(token, { event, admin = false, touch = true } = {}) {
     let payload;

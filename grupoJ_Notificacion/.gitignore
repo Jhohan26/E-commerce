@@ -6,3 +6,5 @@ coverage/
 .artifacts/
 *.log
 microservicio-notificaciones-actualizado.zip
+
+.env.worker

@@ -26,7 +26,7 @@ export class RabbitConsumer {
       channel.on('close', () => { this.connected = false; void connection.close().catch(() => {}); });
       await assertTopology(channel, this.config);
       await channel.prefetch(this.config.prefetch);
-      if (this.config.access && this.config.authRpcEnabled) await startAuthRpc(connection, this.config);
+      if (this.config.access && this.config.authRpcEnabled) await startAuthRpc(connection, this.config, this.service);
       if (this.stopped) { await connection.close(); return; }
       let failed = false;
       await channel.consume(this.config.queue, message => {

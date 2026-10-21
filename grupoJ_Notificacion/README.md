@@ -81,3 +81,14 @@ Las credenciales locales permanecen en .artifacts y no se suben a Git.
 Ver [Kubernetes](docs/KUBERNETES.md), [Postman](postman/README.md),
 [requisitos y evidencias](docs/LABORATORIO.md) y configuraciones.txt.
 No se requiere contratar AWS para el laboratorio.
+
+
+WORKERS RPC: ACTUALIZACION DE CONTRATO
+AUTH_MODULE_LIFETIME_SECONDS=1800 limita a 30 minutos los tokens tecnicos de J.
+RABBITMQ_AUTH_RPC_ENABLED=true habilita notificaciones.auth.login y notificaciones.eventos.
+Formato de Clientes: usuario/password -> status/data.token/tipo/expira_en_segundos.
+La cola de eventos RPC exige JWT y responde 401/403; el cliente renueva una sola vez tras 401.
+Los exchanges compartidos conservan RABBITMQ_REQUIRE_EVENT_JWT=false hasta coordinar productores.
+Las credenciales de cada publicador van en .env.worker, usando examples/.env.worker.example.
+Usar NotificacionesRpc.fromEnv().send(evento); no copiar tokens manualmente.
+Detalles y limites en examples/LOGIN-RABBITMQ.md. El panel administrativo sigue separado.
