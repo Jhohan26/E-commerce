@@ -1,3 +1,4 @@
 pika
 PyMySQL
 python-dotenv
+PyJWT
