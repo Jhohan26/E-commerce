@@ -56,6 +56,8 @@
             <option value="administrador">Administrador</option>
             <option value="operador">Operador</option>
             <option value="cliente:1">Cliente #1</option>
+            <option value="cliente:2">Cliente #2</option>
+            <option value="cliente:3">Cliente #3</option>
             <option value="cliente:25">Cliente #25</option>
             <option value="vencido">Token vencido (401)</option>
             <option value="sin-token">Sin token (401)</option>
@@ -122,6 +124,12 @@
         <span class="kpi-note">Suma de todos los pedidos (COP)</span>
       </div>
     </section>
+
+    <!-- Aviso de filtro por rol JWT cuando se selecciona un cliente -->
+    <div id="jwt-role-banner" hidden style="background:#eff6ff;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span id="jwt-role-banner-text" style="color:#1e3a8a;font-size:13px;font-weight:500;"></span>
+      <button type="button" class="btn btn-sm" id="btn-switch-admin" style="height:28px;font-size:12px;">Ver todos (Modo Administrador)</button>
+    </div>
 
     <!-- Listado -->
     <section class="panel" aria-labelledby="listado-titulo">
@@ -328,6 +336,6 @@
   <!-- Notificaciones -->
   <div class="toasts" id="toasts" popover="manual" aria-live="polite" aria-atomic="false"></div>
 
-  <script type="module" src="js/app.js?v=2.5"></script>
+  <script type="module" src="js/app.js?v=2.6"></script>
 </body>
 </html>

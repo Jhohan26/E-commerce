@@ -73,6 +73,7 @@ async function iniciarConsumidorInventario() {
       isConsuming = false;
       channel = null;
       connection = null;
+      setTimeout(iniciarConsumidorInventario, 5000);
     });
 
     connection.on('error', (err) => {
@@ -80,8 +81,9 @@ async function iniciarConsumidorInventario() {
     });
 
   } catch (err) {
-    console.warn(`[Consumidor Inventario] No se pudo iniciar: ${err.message}`);
+    console.warn(`[Consumidor Inventario] No se pudo iniciar: ${err.message}. Reintentando en 5s...`);
     isConsuming = false;
+    setTimeout(iniciarConsumidorInventario, 5000);
   }
 }
 

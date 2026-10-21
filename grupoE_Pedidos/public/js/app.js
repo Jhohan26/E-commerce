@@ -1038,6 +1038,18 @@ async function aplicarPerfilJwt(profileValue, { notify = true } = {}) {
   const val = profileValue || 'administrador';
   if (el.jwtProfile) el.jwtProfile.value = val;
 
+  const banner = $('jwt-role-banner');
+  const bannerText = $('jwt-role-banner-text');
+  if (banner && bannerText) {
+    if (val.startsWith('cliente:')) {
+      const cid = Number(val.split(':')[1]) || 1;
+      bannerText.textContent = `🔎 Estás viendo únicamente los pedidos del Cliente #${cid} (según el rol "cliente" del token JWT activo).`;
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+  }
+
   if (val === 'sin-token') {
     setAuthSession({ token: '', profile: 'sin-token', user: null });
     if (notify) toast('Sesión sin token JWT: las rutas protegidas responderán 401.', 'warning');
@@ -1080,6 +1092,13 @@ async function aplicarPerfilJwt(profileValue, { notify = true } = {}) {
 if (el.jwtProfile) {
   el.jwtProfile.addEventListener('change', () => {
     aplicarPerfilJwt(el.jwtProfile.value, { notify: true });
+  });
+}
+
+const btnSwitchAdmin = $('btn-switch-admin');
+if (btnSwitchAdmin) {
+  btnSwitchAdmin.addEventListener('click', () => {
+    aplicarPerfilJwt('administrador', { notify: true });
   });
 }
 

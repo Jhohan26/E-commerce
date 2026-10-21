@@ -6,6 +6,7 @@ metadata:
 data:
   PORT: "3000"
   DB_HOST: "host.docker.internal"
+  DB_FALLBACK_HOST: "pedidos-mysql"
   DB_PORT: "3306"
   DB_NAME: "pedidos_db"
   RABBITMQ_EXCHANGE: "pedidos_exchange"
@@ -16,6 +17,56 @@ data:
   JWT_ALGORITHM: "HS256"
   JWT_EXPIRES_IN: "1800"
   CLIENTES_RPC_USER: "demo"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pedidos-mysql
+  namespace: ecommerce
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pedidos-mysql
+  template:
+    metadata:
+      labels:
+        app: pedidos-mysql
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_DATABASE
+              value: "pedidos_db"
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pedidos-secret
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pedidos-mysql
+  namespace: ecommerce
+spec:
+  selector:
+    app: pedidos-mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -81,4 +132,3 @@ spec:
   ports:
     - port: 3000
       targetPort: 3000
-

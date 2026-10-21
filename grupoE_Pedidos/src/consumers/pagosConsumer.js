@@ -73,6 +73,7 @@ async function iniciarConsumidorPagos() {
       isConsuming = false;
       channel = null;
       connection = null;
+      setTimeout(iniciarConsumidorPagos, 5000);
     });
 
     connection.on('error', (err) => {
@@ -80,8 +81,9 @@ async function iniciarConsumidorPagos() {
     });
 
   } catch (err) {
-    console.warn(`[Consumidor Pagos] No se pudo iniciar: ${err.message}`);
+    console.warn(`[Consumidor Pagos] No se pudo iniciar: ${err.message}. Reintentando en 5s...`);
     isConsuming = false;
+    setTimeout(iniciarConsumidorPagos, 5000);
   }
 }
 
