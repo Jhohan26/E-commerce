@@ -1,0 +1,15 @@
+$kind: http-request
+name: Administrador intenta agregar al carrito -> 403
+url: "{{base_url}}/api/carrito/{{cliente_id}}/items"
+method: POST
+headers:
+  Authorization: Bearer {{token_administrador}}
+  Content-Type: application/json
+body:
+  type: text
+  content: '{"producto_id": 1, "cantidad": 1}'
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 403', function () { pm.expect(pm.response.code).to.be.oneOf([403]); });"
+    language: text/javascript
+order: 2000

@@ -1,0 +1,14 @@
+$kind: http-request
+name: Cliente crea el pedido -> 201 con pedidoId
+description: El carrito llama a Pedidos con su propio JWT de servicio (API_USUARIO). Si Pedidos está apagado responde 502 y el carrito se conserva.
+url: "{{base_url}}/api/carrito/{{cliente_id}}/pedido"
+method: POST
+headers:
+  Authorization: Bearer {{token_cliente}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código HTTP esperado: 201', function () { pm.expect(pm.response.code).to.be.oneOf([201]); });
+      pm.test('Trae pedidoId', function () { pm.expect(pm.response.json()).to.have.property('pedidoId'); });
+    language: text/javascript
+order: 2000

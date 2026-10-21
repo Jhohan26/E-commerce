@@ -1,0 +1,11 @@
+$kind: http-request
+name: Cliente vacía su carrito -> 200
+url: "{{base_url}}/api/carrito/{{cliente_id}}"
+method: DELETE
+headers:
+  Authorization: Bearer {{token_cliente}}
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 200', function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+    language: text/javascript
+order: 3000

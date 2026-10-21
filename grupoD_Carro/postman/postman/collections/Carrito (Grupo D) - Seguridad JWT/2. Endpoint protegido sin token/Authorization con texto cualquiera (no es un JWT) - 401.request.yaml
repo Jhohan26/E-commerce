@@ -1,0 +1,12 @@
+$kind: http-request
+name: Authorization con texto cualquiera (no es un JWT) -> 401
+description: "Demuestra que NO basta con que exista el encabezado: se valida el token."
+url: "{{base_url}}/api/carrito/{{cliente_id}}"
+method: GET
+headers:
+  Authorization: Bearer {{token_basura}}
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });"
+    language: text/javascript
+order: 3000

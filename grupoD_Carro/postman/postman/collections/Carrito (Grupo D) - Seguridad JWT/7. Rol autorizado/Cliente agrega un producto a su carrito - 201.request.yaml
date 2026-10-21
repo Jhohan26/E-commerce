@@ -1,0 +1,16 @@
+$kind: http-request
+name: Cliente agrega un producto a su carrito -> 201
+description: Devuelve 404 solo si el producto 1 no existe en el catálogo actual.
+url: "{{base_url}}/api/carrito/{{cliente_id}}/items"
+method: POST
+headers:
+  Authorization: Bearer {{token_cliente}}
+  Content-Type: application/json
+body:
+  type: text
+  content: '{"producto_id": 1, "cantidad": 1}'
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 201 ó 404', function () { pm.expect(pm.response.code).to.be.oneOf([201, 404]); });"
+    language: text/javascript
+order: 1000

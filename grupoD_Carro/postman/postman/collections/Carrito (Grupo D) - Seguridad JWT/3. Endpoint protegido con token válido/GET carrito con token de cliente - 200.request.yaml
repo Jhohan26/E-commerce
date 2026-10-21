@@ -1,0 +1,11 @@
+$kind: http-request
+name: GET carrito con token de cliente -> 200
+url: "{{base_url}}/api/carrito/{{cliente_id}}"
+method: GET
+headers:
+  Authorization: Bearer {{token_cliente}}
+scripts:
+  - type: afterResponse
+    code: "pm.test('Código HTTP esperado: 200', function () { pm.expect(pm.response.code).to.be.oneOf([200]); });"
+    language: text/javascript
+order: 1000

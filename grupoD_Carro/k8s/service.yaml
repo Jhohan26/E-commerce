@@ -1,0 +1,17 @@
+# Punto de acceso estable dentro del clúster: http://carrito.ecommerce.svc.cluster.local:8000
+# Para probarlo desde tu máquina:  kubectl port-forward svc/carrito 8000:8000 -n ecommerce
+apiVersion: v1
+kind: Service
+metadata:
+  name: carrito
+  namespace: ecommerce
+  labels:
+    app: carrito
+spec:
+  type: ClusterIP
+  selector:
+    app: carrito
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

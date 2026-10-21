@@ -3,3 +3,6 @@ venv/
 __pycache__/
 *.pyc
 *.db
+postman/*.postman_environment.json
+.pytest_cache/
+k8s/secret.yaml

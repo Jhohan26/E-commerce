@@ -1,0 +1,16 @@
+# Configuración NO sensible del carrito. Los valores sensibles están en el Secret (secret.yaml.example).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: carrito-config
+  namespace: ecommerce
+  labels:
+    app: carrito
+data:
+  PEDIDOS_EXCHANGE: "pedidos_exchange"
+  PEDIDOS_ROUTING_KEY: "pedido.creado"
+  SIMULAR_CLIENTES: "true"
+  # Enviar el JWT de servicio a Pedidos (header Authorization). "false" = interruptor de emergencia.
+  PEDIDOS_USAR_JWT: "true"
+  JWT_ALGORITHM: "HS256"
+  # JWT_ISSUER: "auth-service"        # descomentar si el módulo de autenticación fija el claim iss

@@ -20,6 +20,9 @@ SIMULAR_CLIENTES = os.getenv("SIMULAR_CLIENTES", "true").strip().lower() in ("1"
 API_USUARIO = os.getenv("API_USUARIO")
 API_PASSWORD = os.getenv("API_PASSWORD")
 COLA_LOGIN = "auth.login"
+# El mismo JWT de servicio que ya se usa con Clientes se envía también a Pedidos (header Authorization).
+# Interruptor de emergencia: PEDIDOS_USAR_JWT=false vuelve a llamar a Pedidos sin token.
+PEDIDOS_USAR_JWT = os.getenv("PEDIDOS_USAR_JWT", "true").strip().lower() in ("1", "true", "si", "sí", "yes")
 _MARGEN_EXPIRACION = 30  # segundos: renovar el token un poco antes de que venza
 
 # Cliente de prueba, con los mismos campos que devuelve el worker de Clientes.
@@ -67,7 +70,7 @@ def llamar_rpc(cola: str, payload: dict | None = None, timeout: int = 10, header
             connection.process_data_events(time_limit=1)
             if "data" in resultado:
                 return resultado["data"]
-        raise TimeoutError("El worker de clientes no respondió a tiempo")
+        raise TimeoutError(f"No hubo respuesta en la cola '{cola}' a tiempo")
     finally:
         connection.close()
 
@@ -144,6 +147,7 @@ def publicar_pedido(cliente_id: int, items: list[dict], timeout: int = 15, clien
 
     Devuelve un dict con la forma del evento PedidoCreado (evento, pedidoId,
     clienteId, fecha, total, productos): main.py y los templates no cambian.
+    La llamada va autenticada con JWT (header Authorization: Bearer ...), igual que Clientes.
     Lanza RuntimeError si Pedidos no responde o rechaza el pedido (main.py ya
     muestra ese error y conserva el carrito).
     """
@@ -151,14 +155,24 @@ def publicar_pedido(cliente_id: int, items: list[dict], timeout: int = 15, clien
     if cliente_nombre:
         payload["clienteNombre"] = cliente_nombre  # informativo: Pedidos hoy lo ignora
     try:
-        resp = llamar_rpc(COLA_PEDIDOS, payload, timeout)
+        if PEDIDOS_USAR_JWT:
+            # Credencial de SERVICIO (usuario API_USUARIO), la misma que usa Clientes. No es el token
+            # de la persona que compra ni las credenciales de RabbitMQ: son controles distintos.
+            resp = llamar_rpc_autenticado(COLA_PEDIDOS, payload, timeout)
+        else:
+            resp = llamar_rpc(COLA_PEDIDOS, payload, timeout)
     except TimeoutError:
         raise RuntimeError(
-            "El microservicio de Pedidos no respondió a tiempo. Verifica que Pedidos esté corriendo, "
-            "que en su consola aparezca '[Consumidor Carro] Escuchando...' y que use la misma "
+            "El microservicio de Pedidos (o el de autenticación) no respondió a tiempo. Verifica que Pedidos "
+            "esté corriendo, que en su consola aparezca '[Consumidor Carro] Escuchando...' y que use la misma "
             "instancia de CloudAMQP que este carrito."
         )
 
+    if resp.get("status") in (401, 403):
+        raise RuntimeError(
+            f"Pedidos rechazó la autenticación del carrito (status {resp.get('status')}). "
+            "Revisa API_USUARIO / API_PASSWORD y que ese usuario tenga permiso para crear pedidos."
+        )
     if resp.get("status") not in (200, 201):
         raise RuntimeError(resp.get("error") or f"Pedidos rechazó el pedido (status {resp.get('status')})")
 

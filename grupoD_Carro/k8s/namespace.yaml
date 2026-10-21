@@ -1,0 +1,6 @@
+# Namespace compartido de la plataforma (Fase 6). Si ya existe (kubectl create namespace ecommerce),
+# aplicar este archivo es inofensivo.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce

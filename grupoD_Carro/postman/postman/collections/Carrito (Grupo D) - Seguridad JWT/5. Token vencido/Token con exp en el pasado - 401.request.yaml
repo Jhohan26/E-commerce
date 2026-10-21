@@ -1,0 +1,13 @@
+$kind: http-request
+name: Token con exp en el pasado -> 401
+url: "{{base_url}}/api/carrito/{{cliente_id}}"
+method: GET
+headers:
+  Authorization: Bearer {{token_vencido}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Código HTTP esperado: 401', function () { pm.expect(pm.response.code).to.be.oneOf([401]); });
+      pm.test('Mensaje indica vencimiento', function () { pm.expect(pm.response.json().detail).to.include('vencido'); });
+    language: text/javascript
+order: 1000

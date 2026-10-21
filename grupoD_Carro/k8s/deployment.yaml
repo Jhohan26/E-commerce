@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carrito
+  namespace: ecommerce
+  labels:
+    app: carrito
+spec:
+  # Decisión documentada: 1 réplica. Los carritos viven EN MEMORIA de cada proceso; con 2+ réplicas el
+  # Service repartiría las peticiones y cada Pod mostraría un carrito distinto. Para escalar habría que
+  # externalizar el estado (Redis/BD). La recuperación ante fallos la da el Deployment (recrea el Pod),
+  # aunque los carritos en curso se pierden al reiniciar (el pedido ya enviado a Pedidos NO se pierde).
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carrito
+  template:
+    metadata:
+      labels:
+        app: carrito
+        version: "1.0.0"
+    spec:
+      containers:
+        - name: carrito
+          image: carrito-grupod:1.0.0        # tag identificable; ver README (minikube image load / registro)
+          imagePullPolicy: IfNotPresent      # permite usar la imagen cargada en Minikube sin registro remoto
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: carrito-config
+            - secretRef:
+                name: carrito-secret
+          readinessProbe:                    # el Service solo envía tráfico cuando responde
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:                     # si deja de responder, Kubernetes reinicia el contenedor
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
