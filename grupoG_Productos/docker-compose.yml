@@ -22,8 +22,8 @@ services:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: ecommerce_productos
       TZ: America/Bogota
-    ports:
-      - "3307:3306"   # opcional: para conectarte desde Workbench/DBeaver en localhost:3307
+    #ports:
+    #  - "3307:3306"   # opcional: para conectarte desde Workbench/DBeaver en localhost:3307
     volumes:
       - db_data:/var/lib/mysql
       # Solo se ejecuta la PRIMERA vez (cuando el volumen está vacío)
@@ -63,6 +63,7 @@ services:
       - backend
 
   worker:
+    env_file: .env
     build:
       context: .
       dockerfile: Dockerfile.worker
