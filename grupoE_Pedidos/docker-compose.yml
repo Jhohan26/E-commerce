@@ -45,8 +45,12 @@ services:
       JWT_SECRET: ${JWT_SECRET:-es_un_secreto_de_tu_mirada_y_la_mia,_un_presentimiento,_como_un_ángel_que_me_decia}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1800}
-      CLIENTES_RPC_USER: ${CLIENTES_RPC_USER:-demo}
-      CLIENTES_RPC_PASSWORD: ${CLIENTES_RPC_PASSWORD:-demo123}
+      CLIENTES_RPC_USER: ${CLIENTES_RPC_USER:-modulo_pedidos}
+      CLIENTES_RPC_PASSWORD: ${CLIENTES_RPC_PASSWORD:-laquesemediolagana}
+      INVENTARIO_RPC_USER: ${INVENTARIO_RPC_USER:-inventario}
+      INVENTARIO_RPC_PASSWORD: ${INVENTARIO_RPC_PASSWORD:-12345678}
+      PRODUCTOS_RPC_USER: ${PRODUCTOS_RPC_USER:-productos}
+      PRODUCTOS_RPC_PASSWORD: ${PRODUCTOS_RPC_PASSWORD:-productos1}
 
 volumes:
   pedidos_mysql_data:
