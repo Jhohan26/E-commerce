@@ -1,6 +1,63 @@
+# Arranque completo:  docker compose up --build
+#   - db      : MySQL 8.4 con el esquema y los datos de inventario_dump.sql
+#   - api     : FastAPI + interfaz web (+ consumidor de PedidoCreado)  -> http://localhost:8005
+#   - worker  : worker RPC (login / consultar / listar) por RabbitMQ
+# RabbitMQ es externo (CloudAMQP): la URL se toma de .env
+
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    # Dentro de la red de compose la BD se llama "db" (esto pisa DB_HOST=localhost del .env)
+    DB_HOST: db
+    DB_PORT: "3306"
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
+  db:
+    image: mysql:8.4
+    # El código usa "Inventario"/"PedidoProcesado" y el dump (hecho en Windows) crea tablas en
+    # minúsculas; en Linux MySQL distingue mayúsculas. Con =1 ambas formas funcionan.
+    command: ["--lower-case-table-names=1", "--character-set-server=utf8mb4"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      MYSQL_DATABASE: ${DB_NAME:-inventario}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/importar-dump.sh:/docker-entrypoint-initdb.d/10-importar-dump.sh:ro
+      - ./inventario_dump.sql:/dump/inventario_dump.sql:ro
+    #ports:
+      # Solo desde este equipo (para MySQL Workbench: host 127.0.0.1, puerto 3307)
+      #- "127.0.0.1:3307:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+  api:
+    <<: *app
     ports:
-      - "5672:5672"     # AMQP
-      - "15672:15672"   # Panel web (guest / guest)
+      # Por defecto solo accesible desde este equipo. Para exponerla a la red: API_BIND=0.0.0.0
+      # (y entonces pon también EDICION_HOSTS= vacío, o cualquiera en la red podrá editar).
+      - "${API_BIND:-127.0.0.1}:8005:8005"
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      # La edición de cantidades es "solo local": en Docker el navegador del anfitrión llega
+      # desde la IP del gateway de Docker (rangos privados), no desde 127.0.0.1.
+      EDICION_HOSTS: ${EDICION_HOSTS-172.16.0.0/12,192.168.0.0/16,10.0.0.0/8}
+
+  worker:
+    <<: *app
+    command: ["python", "worker_inventario.py"]
+    volumes:
+      - ./usuarios.json:/app/usuarios.json:ro
+
+volumes:
+  mysql_data:

@@ -16,7 +16,9 @@ data:
   RABBITMQ_CONSUMER_QUEUE: "simulador_pedidos_queue"
   JWT_ALGORITHM: "HS256"
   JWT_EXPIRES_IN: "1800"
-  CLIENTES_RPC_USER: "demo"
+  CLIENTES_RPC_USER: "modulo_pedidos"
+  INVENTARIO_RPC_USER: "inventario"
+  PRODUCTOS_RPC_USER: "productos"
 ---
 apiVersion: apps/v1
 kind: Deployment
