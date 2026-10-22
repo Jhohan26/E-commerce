@@ -1,0 +1,12 @@
+.venv
+**/__pycache__
+*.pyc
+.env
+.git
+.gitignore
+usuarios.json
+inventario_dump.sql
+sql
+docker
+docker-compose.yml
+README.md

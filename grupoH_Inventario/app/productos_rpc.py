@@ -1,5 +1,10 @@
 """Cliente RPC del microservicio de Productos (RabbitMQ).
 
+Autenticación JWT (igual que cliente_rpc.py): primero hace login en la cola
+`productos.login` con AUTH_USUARIO / AUTH_PASSWORD del .env, guarda el token y lo
+envía en el header `Authorization: Bearer <token>` en cada llamada. Si el worker
+responde 401 (token vencido), vuelve a hacer login y reintenta una vez.
+
 Pide el catálogo a la cola `productos.listar` y espera la respuesta en una cola
 exclusiva (patrón reply_to + correlation_id). Es seguro entre hilos: FastAPI
 atiende cada petición en un hilo distinto y aquí se serializan las llamadas.
@@ -20,8 +25,13 @@ log = logging.getLogger("inventario.productos")
 # El módulo de Productos vive en OTRA instancia de CloudAMQP: no reutilices RABBITMQ_URL
 # a menos que sea la misma. Si no defines PRODUCTOS_RABBITMQ_URL se usa RABBITMQ_URL.
 URL = os.getenv("PRODUCTOS_RABBITMQ_URL") or os.getenv("RABBITMQ_URL", "")
+COLA_LOGIN = os.getenv("PRODUCTOS_COLA_LOGIN", "productos.login")
 COLA_LISTAR = os.getenv("PRODUCTOS_COLA_LISTAR", "productos.listar")
 COLA_CONSULTAR = os.getenv("PRODUCTOS_COLA_CONSULTAR", "producto.consultar")
+# Credenciales con las que el módulo de Productos te dio acceso (van en el .env).
+# Se aceptan también AUTH_USUARIO / AUTH_PASSWORD, como en cliente_rpc.py.
+AUTH_USUARIO = os.getenv("PRODUCTOS_AUTH_USUARIO") or os.getenv("AUTH_USUARIO", "")
+AUTH_PASSWORD = os.getenv("PRODUCTOS_AUTH_PASSWORD") or os.getenv("AUTH_PASSWORD", "")
 TIMEOUT = int(os.getenv("PRODUCTOS_RPC_TIMEOUT", "8"))
 CACHE_SEG = int(os.getenv("PRODUCTOS_CACHE_SEG", "10"))
 
@@ -34,6 +44,10 @@ _CLAVES_PRECIO = ("precio", "price", "valor")
 class ProductosError(Exception):
     """El módulo de Productos no respondió o devolvió algo inesperado."""
 
+    def __init__(self, mensaje: str, status: int | None = None):
+        super().__init__(mensaje)
+        self.status = status
+
 
 def _primero(d: dict, claves: tuple):
     for k in claves:
@@ -45,8 +59,12 @@ def _primero(d: dict, claves: tuple):
 def normalizar(respuesta) -> list[dict]:
     """Convierte la respuesta del RPC en [{producto_id, nombre, precio, detalle}]."""
     if isinstance(respuesta, dict):
-        if respuesta.get("error"):
-            raise ProductosError(str(respuesta["error"]))
+        status = respuesta.get("status")
+        if respuesta.get("error") or (isinstance(status, int) and status >= 400):
+            raise ProductosError(
+                str(respuesta.get("error") or f"Productos respondió con status {status}"),
+                status if isinstance(status, int) else None,
+            )
         for k in _CLAVES_LISTA:
             if isinstance(respuesta.get(k), list):
                 respuesta = respuesta[k]
@@ -83,6 +101,7 @@ class ClienteProductos:
         self._cola_resp = None
         self._corr_id = None
         self._respuesta = None
+        self._token: str | None = None
         self._cache: list[dict] | None = None
         self._cache_hasta = 0.0
 
@@ -100,7 +119,13 @@ class ClienteProductos:
 
     def _on_response(self, ch, method, props, body):
         if props.correlation_id == self._corr_id:
-            self._respuesta = json.loads(body)
+            try:
+                self._respuesta = json.loads(body)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                self._respuesta = {
+                    "status": 502,
+                    "error": "Productos devolvió una respuesta JSON inválida",
+                }
 
     def cerrar(self):
         with self._lock:
@@ -115,7 +140,7 @@ class ClienteProductos:
         self._conn = self._canal = None
 
     # ---------- RPC ----------
-    def _llamar_una_vez(self, cola: str, payload: dict | None):
+    def _enviar(self, cola: str, payload: dict | None, headers: dict | None = None):
         if not self._conn or self._conn.is_closed:
             self._conectar()
         self._respuesta = None
@@ -127,6 +152,8 @@ class ClienteProductos:
                 reply_to=self._cola_resp,
                 correlation_id=self._corr_id,
                 expiration=str(TIMEOUT * 1000),
+                headers=headers,
+                content_type="application/json",
             ),
             body=json.dumps(payload).encode() if payload is not None else b"",
         )
@@ -136,6 +163,42 @@ class ClienteProductos:
         if self._respuesta is None:
             raise TimeoutError("El módulo de Productos no respondió a tiempo")
         return self._respuesta
+
+    def _login(self) -> str:
+        """Pide un JWT a la cola `productos.login` con las credenciales del .env."""
+        if not AUTH_USUARIO or not AUTH_PASSWORD:
+            raise ProductosError(
+                "Faltan PRODUCTOS_AUTH_USUARIO y PRODUCTOS_AUTH_PASSWORD en el .env"
+            )
+        respuesta = self._enviar(
+            COLA_LOGIN, {"usuario": AUTH_USUARIO, "password": AUTH_PASSWORD}
+        )
+        if respuesta.get("status") != 200:
+            raise ProductosError(
+                f"Login en Productos rechazado: {respuesta.get('error', 'error de autenticación')}",
+                respuesta.get("status", 500),
+            )
+        try:
+            self._token = respuesta["data"]["token"]
+        except (KeyError, TypeError):
+            raise ProductosError("Respuesta de login de Productos inválida", 502) from None
+        return self._token
+
+    def _llamar_una_vez(self, cola: str, payload: dict | None):
+        if self._token is None:
+            self._login()
+        for intento in range(2):
+            respuesta = self._enviar(
+                cola, payload, headers={"Authorization": f"Bearer {self._token}"}
+            )
+            if respuesta.get("status") == 401 and intento == 0:
+                # Token vencido o inválido: nuevo login y se reintenta una vez
+                log.info("Token de Productos rechazado (401); renovando")
+                self._token = None
+                self._login()
+                continue
+            return respuesta
+        return respuesta
 
     def llamar(self, cola: str, payload: dict | None = None):
         with self._lock:

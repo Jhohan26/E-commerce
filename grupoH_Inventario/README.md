@@ -374,3 +374,18 @@ ON DUPLICATE KEY UPDATE cantidad = VALUES(cantidad);
 - **Pagos / Notificaciones / Reportes:** formato de `InventarioActualizado` e
   `InventarioInsuficiente` y enlazar su cola a `inventario_exchange`.
 - **Compensación:** si el pago es rechazado, ¿quién devuelve el stock? No está implementado.
+
+## Docker
+
+    docker compose up --build
+
+Levanta tres servicios: `db` (MySQL 8.4, importa `inventario_dump.sql` la primera vez), `api`
+(interfaz + API en http://localhost:8005) y `worker` (RPC por RabbitMQ). RabbitMQ sigue siendo
+CloudAMQP, con la URL de `.env` (`DB_HOST` lo sobrescribe compose a `db`).
+
+- MySQL queda también en `127.0.0.1:3307` por si quieres abrirlo con Workbench.
+- Los datos viven en el volumen `mysql_data`. El dump solo se importa con el volumen vacío;
+  para reimportarlo: `docker compose down -v && docker compose up --build`.
+- La edición de cantidades sigue siendo "solo local": por defecto el puerto 8005 solo se publica
+  en `127.0.0.1`. Si pones `API_BIND=0.0.0.0` para compartir la API en la red, define también
+  `EDICION_HOSTS=` (vacío) para que otros equipos no puedan editar.

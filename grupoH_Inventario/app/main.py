@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -109,9 +110,26 @@ def health(db=Depends(get_db)):
     return {"api": "ok", "base_de_datos": "ok", "rabbitmq": "ok" if app.state.consumer.conectado else "desconectado"}
 
 # ---------- Edición de cantidades (SOLO desde el equipo local) ----------
+# Redes extra tratadas como "local" (lista separada por comas, p. ej. "172.16.0.0/12").
+# Dentro de Docker las peticiones del navegador del anfitrión llegan desde la IP del gateway
+# del contenedor y no desde 127.0.0.1; docker-compose lo configura (ver EDICION_HOSTS).
+EDICION_REDES = []
+for _r in os.getenv("EDICION_HOSTS", "").split(","):
+    if _r.strip():
+        EDICION_REDES.append(ipaddress.ip_network(_r.strip(), strict=False))
+
+
 def es_local(request: Request) -> bool:
     host = request.client.host if request.client else ""
-    return host in ("127.0.0.1", "::1") and "x-forwarded-for" not in request.headers
+    if "x-forwarded-for" in request.headers:
+        return False
+    if host in ("127.0.0.1", "::1"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return any(ip in red for red in EDICION_REDES)
 
 
 def solo_local(request: Request):
