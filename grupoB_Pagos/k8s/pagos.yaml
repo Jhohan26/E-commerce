@@ -24,6 +24,7 @@ data:
   AMQP_CONFIRM_TIMEOUT: "5"
   CLIENT_RPC_QUEUE: "cliente.consultar"
   CLIENT_RPC_TIMEOUT: "4"
+  CLIENT_AUTH_QUEUE: "auth.login"
   RECOVERY_INTERVAL: "5"
   RECOVERY_BATCH: "100"
 ---
@@ -47,7 +48,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: web
-          image: pagos:lab-jwt-v1
+          image: pagos:lab-jwt-clientes-v9
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
@@ -56,6 +57,8 @@ spec:
                 name: pagos-config
             - secretRef:
                 name: pagos-secret
+            - secretRef:
+                name: pagos-clientes-secret
           resources:
             requests:
               cpu: 100m
@@ -113,7 +116,10 @@ spec:
         - name: consumer
           image: pagos:lab-jwt-v1
           imagePullPolicy: IfNotPresent
-          command: ["php", "bin/console.php", "consume"]
+          command:
+            - php
+            - bin/console.php
+            - consume
           envFrom:
             - configMapRef:
                 name: pagos-config
@@ -142,10 +148,15 @@ spec:
               memory: 256Mi
           livenessProbe:
             exec:
-              command: ["php", "-r", "exit(str_contains(file_get_contents('/proc/1/cmdline'), 'bin/console.php') ? 0 : 1);"]
+              command:
+                - php
+                - -r
+                - "exit(str_contains(file_get_contents('/proc/1/cmdline'), 'bin/console.php') ? 0 : 1);"
             periodSeconds: 15
           readinessProbe:
             exec:
-              command: ["php", "-r", "exit(str_contains(file_get_contents('/proc/1/cmdline'), 'bin/console.php') ? 0 : 1);"]
+              command:
+                - php
+                - -r
+                - "exit(str_contains(file_get_contents('/proc/1/cmdline'), 'bin/console.php') ? 0 : 1);"
             periodSeconds: 10
-

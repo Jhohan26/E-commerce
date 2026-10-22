@@ -8,6 +8,8 @@ require_once __DIR__ . '/_auth.php';
 
 requireAuth(['operador', 'administrador']);
 
+session_write_close();
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');

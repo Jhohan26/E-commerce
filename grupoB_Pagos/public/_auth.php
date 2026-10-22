@@ -7,15 +7,25 @@ use Pagos\Auth\JwtAuth;
 
 require_once __DIR__ . '/_session.php';
 
+function authorizationHeader(array $server): string
+{
+    foreach (
+        ['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION']
+        as $key
+    ) {
+        $value = trim((string) ($server[$key] ?? ''));
+
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
 function bearerToken(array $server): ?string
 {
-    $authorization = trim(
-        (string) (
-            $server['HTTP_AUTHORIZATION']
-            ?? $server['REDIRECT_HTTP_AUTHORIZATION']
-            ?? ''
-        )
-    );
+    $authorization = authorizationHeader($server);
 
     if (!preg_match('/^Bearer\s+(.+)$/i', $authorization, $matches)) {
         return null;
@@ -29,6 +39,7 @@ function bearerToken(array $server): ?string
 function authError(AuthException $error): never
 {
     http_response_code($error->httpStatus);
+
     if ($error->httpStatus === 401) {
         unset($_SESSION['auth_token']);
         header('WWW-Authenticate: Bearer');
@@ -52,12 +63,12 @@ function requireAuth(array $roles = [], bool $allowSession = true): AuthUser
         $config = require dirname(__DIR__) . '/bootstrap.php';
         $auth = new JwtAuth($config);
 
+        $authorization = authorizationHeader($_SERVER);
         $token = bearerToken($_SERVER);
 
         if (
             $token === null
-            && !isset($_SERVER['HTTP_AUTHORIZATION'])
-            && !isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])
+            && $authorization === ''
             && $allowSession
             && is_string($_SESSION['auth_token'] ?? null)
             && $_SESSION['auth_token'] !== ''

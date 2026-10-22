@@ -1,0 +1,91 @@
+{
+    "fecha_utc": "2026-10-22T01:24:01+00:00",
+    "destino": "Apache HTTP del Pod pagos-web en Kubernetes",
+    "metodo": "Ocho casos HTTP equivalentes a la coleccion Postman; sin cookies",
+    "tokens": "Temporales de cinco minutos generados dentro del contenedor; no exportados",
+    "total": 8,
+    "aprobadas": 8,
+    "fallidas": 0,
+    "resultados": [
+        {
+            "prueba": "Publico sin token",
+            "endpoint": "health.php",
+            "esperado": 200,
+            "recibido": 200,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 2,
+            "mensaje": null
+        },
+        {
+            "prueba": "Protegido sin token",
+            "endpoint": "pending.php",
+            "esperado": 401,
+            "recibido": 401,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 1,
+            "mensaje": "Token requerido"
+        },
+        {
+            "prueba": "Token valido operador",
+            "endpoint": "pending.php",
+            "esperado": 200,
+            "recibido": 200,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 19,
+            "mensaje": null
+        },
+        {
+            "prueba": "Token alterado",
+            "endpoint": "pending.php",
+            "esperado": 401,
+            "recibido": 401,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 1,
+            "mensaje": "Token invalido"
+        },
+        {
+            "prueba": "Token vencido",
+            "endpoint": "pending.php",
+            "esperado": 401,
+            "recibido": 401,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 2,
+            "mensaje": "Token vencido"
+        },
+        {
+            "prueba": "Rol cliente no autorizado",
+            "endpoint": "pending.php",
+            "esperado": 403,
+            "recibido": 403,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 1,
+            "mensaje": "Acceso denegado"
+        },
+        {
+            "prueba": "Rol operador autorizado",
+            "endpoint": "pending.php",
+            "esperado": 200,
+            "recibido": 200,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 14,
+            "mensaje": null
+        },
+        {
+            "prueba": "Rol administrador autorizado",
+            "endpoint": "pending.php",
+            "esperado": 200,
+            "recibido": 200,
+            "json_valido": true,
+            "correcta": true,
+            "duracion_ms": 17,
+            "mensaje": null
+        }
+    ]
+}

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+
 $approved = $row !== null && $row['estado'] === 'APROBADO';
 $rejected = $row !== null && $row['estado'] === 'RECHAZADO';
 $awaitingDecision = $row !== null && $row['estado'] === 'PENDIENTE';
@@ -17,7 +18,7 @@ $awaitingDecision = $row !== null && $row['estado'] === 'PENDIENTE';
     <dl class="payment-details">
         <div><dt>Pedido</dt><dd>#<?= h($row['pedido_id']) ?></dd></div>
         <div><dt>Cliente ID</dt><dd>#<?= h($row['cliente_id']) ?></dd></div>
-        <div><dt>Nombre del cliente</dt><dd data-client-name data-order-id="<?= h($row['pedido_id']) ?>" aria-live="polite">Consultando…</dd></div>
+        <div><dt>Nombre del cliente</dt><dd data-client-name data-order-id="<?= h($row['pedido_id']) ?>" aria-live="polite">Nombre no disponible</dd></div>
         <div><dt>Estado</dt><dd><span class="badge <?= $approved ? 'approved' : ($rejected ? 'rejected' : '') ?>"><?= h($row['estado']) ?></span></dd></div>
         <?php if (!empty($row['fecha_procesamiento'])): ?><div><dt><?= $awaitingDecision ? 'Recibido (UTC)' : 'Fecha (UTC)' ?></dt><dd class="date-value"><?= h($row['fecha_procesamiento']) ?></dd></div><?php endif; ?>
         <div><dt>Evento publicado</dt><dd class="publication-detail"><?= $awaitingDecision ? 'Esperando decisión' : ((int) $row['evento_publicado'] === 1 ? 'Publicación confirmada' : 'Pendiente de publicación') ?></dd></div>
