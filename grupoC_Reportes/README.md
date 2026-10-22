@@ -44,14 +44,14 @@ Abrir **http://127.0.0.1:8001/**. Notas:
 
 ### Autenticación JWT con los otros grupos
 
-Clientes, Inventario y Pedidos ya no entregan datos sin token. Reportes inicia sesión solo, guarda el token en memoria y, si recibe `401` (vencido), vuelve a iniciar sesión y reintenta una vez. Las cuentas van en el `.env` (ver `.env.example`):
+Clientes, Inventario, Pedidos y Productos ya no entregan datos sin token. Reportes inicia sesión solo, guarda el token en memoria y, si recibe `401` (vencido), vuelve a iniciar sesión y reintenta una vez. Las cuentas van en el `.env` (ver `.env.example`):
 
 | Grupo | Cómo obtiene el token | Variables | Cómo lo envía |
 |-------|----------------------|-----------|---------------|
 | Clientes (F) | Cola `auth.login` con `{"usuario","password"}` | `CLIENTES_RPC_USUARIO`, `CLIENTES_RPC_PASSWORD` | Header AMQP `Authorization: Bearer <token>` |
 | Inventario (H) | Cola `inventario.login` (su propia clave, distinta a la de F) | `INVENTARIO_RPC_USUARIO`, `INVENTARIO_RPC_PASSWORD` | Header AMQP `Authorization: Bearer <token>` |
 | Pedidos (E) | `POST /api/auth/token` con `{"role": "operador"}` (o un token fijo en `PEDIDOS_TOKEN`) | `PEDIDOS_ROL`, `PEDIDOS_TOKEN` | Header HTTP `Authorization: Bearer <token>` |
-| Productos (G) | Aún no usa JWT | — | — |
+| Productos (G) | Cola `productos.login` con `{"usuario","password"}` | `PRODUCTOS_RPC_USUARIO`, `PRODUCTOS_RPC_PASSWORD` | Header AMQP `Authorization: Bearer <token>` |
 
 Si falta una cuenta o la rechazan, el recuadro de ese servicio en el dashboard lo explica (por ejemplo: *Faltan CLIENTES_RPC_USUARIO y CLIENTES_RPC_PASSWORD en el .env*).
 

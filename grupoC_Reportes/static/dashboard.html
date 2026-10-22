@@ -386,8 +386,7 @@ function dibujarTodo(d) {
 const TXT_ESTADO = { ok:"Conectado", error:"Sin conexión", sin_configurar:"Sin configurar", pendiente:"Conectando…", opcional:"Opcional" };
 function pintarConexiones(st) {
 	$("conex-grid").innerHTML = Object.entries(st)
-		.filter(([clave, f]) => !(clave === "inventario" && f.estado === "sin_configurar")           // sin Inventario no se muestra su tarjeta
-			&& !(clave === "pedidos" && f.estado === "error" && st.rabbit.estado === "ok"))        // la API de Pedidos es opcional si los pedidos llegan en vivo
+		.filter(([clave, f]) => !(clave === "pedidos" && f.estado === "error" && st.rabbit.estado === "ok"))        // la API de Pedidos es opcional si los pedidos llegan en vivo
 		.map(([clave, f0]) => {
 		const f = (clave === "pedidos" && f0.estado === "error" && st.rabbit.estado === "ok")
 			? Object.assign({}, f0, { estado:"opcional", etiqueta:"Pedidos · historial (API)",

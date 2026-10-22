@@ -6,7 +6,7 @@ El worker de Clientes (grupoF_Clientes/worker.py) escucha dos colas:
 
 La URL del broker se lee de AMQP_URL (.env); nunca se escribe en el código.
 
-Autenticación JWT: Clientes (cola auth.login) e Inventario (cola inventario.login) exigen un token.
+Autenticación JWT: Clientes (cola auth.login), Inventario (cola inventario.login) y Productos (cola productos.login) exigen un token.
 Reportes inicia sesión con el usuario y la contraseña que le entregó cada grupo (.env), guarda el token
 en memoria, lo envía en el header AMQP "Authorization: Bearer <token>" y, si el worker responde 401
 (token vencido), vuelve a iniciar sesión y reintenta una vez.
@@ -37,13 +37,16 @@ COLA_PEDIDOS = os.getenv("AMQP_COLA_PEDIDOS", "pedidos.listar")
 COLA_INVENTARIO_LISTAR = os.getenv("AMQP_COLA_INVENTARIO_LISTAR", "inventario.listar")
 
 # Colas que exigen JWT -> (cola de login, prefijo de las variables del .env, grupo que entrega la cuenta).
-# Productos y Pedidos (RPC) aún no piden token; si lo agregan, basta con sumarlos aquí.
+# Pedidos (RPC) aún no pide token; si lo agrega, basta con sumarlo aquí.
 _LOGIN_CLIENTES = (os.getenv("AMQP_COLA_LOGIN_CLIENTES", "auth.login"), "CLIENTES_RPC", "Clientes (Grupo F)")
 _LOGIN_INVENTARIO = (os.getenv("AMQP_COLA_LOGIN_INVENTARIO", "inventario.login"), "INVENTARIO_RPC", "Inventario (Grupo H)")
+_LOGIN_PRODUCTOS = (os.getenv("AMQP_COLA_LOGIN_PRODUCTOS", "productos.login"), "PRODUCTOS_RPC", "Productos (Grupo G)")
 LOGIN_POR_COLA = {
 	COLA_CLIENTE: _LOGIN_CLIENTES,
 	COLA_CLIENTES: _LOGIN_CLIENTES,
 	COLA_INVENTARIO_LISTAR: _LOGIN_INVENTARIO,
+	COLA_PRODUCTO: _LOGIN_PRODUCTOS,
+	COLA_PRODUCTOS: _LOGIN_PRODUCTOS,
 }
 _tokens: dict = {}              # cola de login -> (token, momento en que se debe renovar)
 _candado_tokens = threading.Lock()
