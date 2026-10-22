@@ -613,3 +613,26 @@ Con el cliente ya integrado, los cambios de usuario, contraseña o dirección de
 broker se realizan en el entorno. No se reparten tokens nuevos manualmente.
 
 Para consultar todas las variables, ver [configuraciones.txt](configuraciones.txt).
+
+## Verificacion del entorno actualizado
+
+El archivo `.env` real se conserva en la carpeta local y queda excluido de Git.
+Las plantillas `.env.example` y `.env.integracion.example` documentan las variables
+sin publicar las credenciales. No reemplazar un entorno existente por la plantilla.
+
+Ejecutar `npm run check:env` para revisar `.env`, o
+`npm run check:env -- .env.integracion` para revisar el perfil de integracion.
+Esta comprobacion valida configuracion; no certifica disponibilidad de Clientes,
+RabbitMQ o SMTP ni envia correos.
+
+En esta instalacion local, Node utiliza el puerto 3010 para evitar conflictos con
+Bunker Gym en 3000. Docker mantiene el puerto interno 3000 y publica HOST_PORT.
+`docker-compose.yml` transmite tambien las variables SMTP, TLS y fuentes RabbitMQ;
+el perfil de integracion utiliza el broker compartido y requiere AMQPS.
+
+```powershell
+npm run check:env
+npm start
+# Alternativa con el broker compartido y Docker:
+docker compose --env-file=.env.integracion -f docker-compose.integracion.yml up -d --build
+```

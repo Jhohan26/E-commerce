@@ -2,6 +2,7 @@ services:
   notificaciones:
     build: .
     environment:
+      PORT: "3000"
       RABBITMQ_URL: ${RABBITMQ_URL:?Define la URL del RabbitMQ compartido en .env.integracion}
       RABBITMQ_REQUIRE_TLS: "true"
       RABBITMQ_SOURCES: ${RABBITMQ_SOURCES:?Define las fuentes de eventos en .env.integracion}

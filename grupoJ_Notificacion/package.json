@@ -14,7 +14,8 @@
     "check:k8s": "node scripts/check-manifests.js",
     "test:postman": "node scripts/verify-postman-lab.js",
     "test:integration": "node --env-file-if-exists=.env --test tests/integration/*.test.js",
-    "publish": "node --env-file-if-exists=.env scripts/publish.js"
+    "publish": "node --env-file-if-exists=.env scripts/publish.js",
+    "check:env": "node scripts/check-env.js"
   },
   "dependencies": {
     "amqplib": "^0.10.9",
