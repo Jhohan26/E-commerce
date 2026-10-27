@@ -1,7 +1,5 @@
 # Secretos y entorno local: JAMÁS dentro de la imagen
-.env
-.env.*
-!.env.example
+
 env.example
 postman/*.postman_environment.json
 
@@ -12,20 +10,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Lo que no hace falta en runtime
-tests/
-scripts/
-postman/
-k8s/
-docs/
-files/
-*.md
-requirements-dev.txt
-docker-compose.yml
-Dockerfile
-.dockerignore
-.git/
-.gitignore
+
 
 # Catálogo cacheado local (se regenera al hablar con Productos)
 catalogo_cache.json

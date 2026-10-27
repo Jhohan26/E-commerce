@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: carrito-config
-  namespace: ecommerce
+  namespace: carrito
   labels:
     app: carrito
 data:
@@ -13,4 +13,12 @@ data:
   # Enviar el JWT de servicio a Pedidos (header Authorization). "false" = interruptor de emergencia.
   PEDIDOS_USAR_JWT: "true"
   JWT_ALGORITHM: "HS256"
+  CLOUDAMQP_URL: "amqps://yychnpmp:GhdH4NfHUJq2kXLFvFCYNqbxV0w8OUcz@campbell.lmq.cloudamqp.com/yychnpmp"   # credenciales del BROKER
+  API_USUARIO: "modulo_carro"                                               # usuario de servicio ante auth.login
+  API_PASSWORD: "chantilly"
+  PRODUCTOS_USUARIO: "productos"                                            # usuario de servicio ante productos.login
+  PRODUCTOS_PASSWORD: "productos1"
+  JWT_SECRET: "9f3a7c1e5b2d48a6c0e7f1b3d5a89c24"                  # misma clave que firma el Grupo F
+  JWT_ALGORITHM: "HS256"
+
   # JWT_ISSUER: "auth-service"        # descomentar si el módulo de autenticación fija el claim iss

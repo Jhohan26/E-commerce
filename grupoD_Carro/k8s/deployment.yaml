@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: carrito
-  namespace: ecommerce
+  namespace: carrito
   labels:
     app: carrito
 spec:
