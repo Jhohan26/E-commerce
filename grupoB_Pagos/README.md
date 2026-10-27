@@ -1,5 +1,7 @@
 # Microservicio Pagos - Grupo B
 
+> **Instalación en el computador común de Clientes:** seguir [k8s/comun/README.md](k8s/comun/README.md). Incluye MySQL dentro de Kubernetes, almacenamiento persistente y un script de instalación. Esta opción sustituye las instrucciones de Kubernetes con base externa descritas más abajo para el laboratorio anterior.
+
 Microservicio encargado de procesar de forma simulada los pagos del e-commerce distribuido.
 
 Pagos recibe eventos `PedidoCreado` mediante RabbitMQ, valida la información recibida, registra el resultado en su propia base de datos y publica uno de los siguientes eventos:
