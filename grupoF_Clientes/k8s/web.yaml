@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: clientes
+spec:
+  replicas: 2   # las sesiones van firmadas en la cookie (SECRET_KEY compartida), así que escala sin problema
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: clientes-app:1.0
+          imagePullPolicy: IfNotPresent   # imagen construida localmente con docker build
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: clientes-env          # contenido de tu .env
+          env:                              # estas variables tienen prioridad sobre las del .env
+            - name: DB_HOST
+              value: mysql
+            - name: DB_PORT
+              value: "3306"
+          readinessProbe:
+            httpGet:
+              path: /login                  # no toca la base de datos
+              port: 8080
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: clientes
+spec:
+  type: LoadBalancer      # Docker Desktop lo publica en localhost
+  selector:
+    app: web
+  ports:
+    - port: 8081          # mismo puerto que en docker-compose
+      targetPort: 8080
