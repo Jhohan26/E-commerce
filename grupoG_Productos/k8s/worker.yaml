@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: productos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: gg-worker:1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: productos-env   # contenido de tu .env (CLOUDAMQP_URL, JWT_SECRET, AUTH_*, DB_*)
+          env:                        # tienen prioridad sobre lo que venga del .env
+            - name: DB_HOST
+              value: mysql
+            - name: DB_PORT
+              value: "3306"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
