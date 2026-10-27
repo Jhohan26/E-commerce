@@ -1,0 +1,78 @@
+# MySQL de Pedidos. El esquema y el dump (database/schema.sql) los crea y carga la propia
+# aplicacion al arrancar (src/config/db.js) cuando la tabla pedidos esta vacia.
+# Service headless: nombre DNS "pedidos-mysql" (DB_HOST del ConfigMap).
+apiVersion: v1
+kind: Service
+metadata:
+  name: pedidos-mysql
+  namespace: pedidos
+spec:
+  clusterIP: None
+  selector:
+    app: pedidos-mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pedidos-mysql
+  namespace: pedidos
+spec:
+  serviceName: pedidos-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pedidos-mysql
+  template:
+    metadata:
+      labels:
+        app: pedidos-mysql
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_DATABASE
+              value: pedidos_db
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pedidos-secret
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          # Ping por TCP: durante la inicializacion MySQL solo escucha por socket
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\" --silent"]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\" --silent"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

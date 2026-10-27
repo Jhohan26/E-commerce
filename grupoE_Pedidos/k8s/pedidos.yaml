@@ -1,12 +1,14 @@
+# Aplicacion Pedidos (API REST + frontend + consumidores RabbitMQ).
+# Los secretos (DB_USER, DB_PASSWORD, RABBITMQ_URL, JWT_SECRET, *_RPC_PASSWORD) los crea
+# deploy.ps1 desde tu .env como Secret "pedidos-secret"; aqui no hay ningun valor sensible.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pedidos-config
-  namespace: ecommerce
+  namespace: pedidos
 data:
   PORT: "3000"
-  DB_HOST: "host.docker.internal"
-  DB_FALLBACK_HOST: "pedidos-mysql"
+  DB_HOST: "pedidos-mysql"        # MySQL del cluster (antes: host.docker.internal, el MySQL de tu PC)
   DB_PORT: "3306"
   DB_NAME: "pedidos_db"
   RABBITMQ_EXCHANGE: "pedidos_exchange"
@@ -23,60 +25,12 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pedidos-mysql
-  namespace: ecommerce
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: pedidos-mysql
-  template:
-    metadata:
-      labels:
-        app: pedidos-mysql
-    spec:
-      automountServiceAccountToken: false
-      containers:
-        - name: mysql
-          image: mysql:8.0
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 3306
-          env:
-            - name: MYSQL_DATABASE
-              value: "pedidos_db"
-            - name: MYSQL_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: pedidos-secret
-                  key: DB_PASSWORD
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: "1"
-              memory: 512Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: pedidos-mysql
-  namespace: ecommerce
-spec:
-  selector:
-    app: pedidos-mysql
-  ports:
-    - port: 3306
-      targetPort: 3306
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: pedidos-web
-  namespace: ecommerce
+  namespace: pedidos
+  labels:
+    app: pedidos-web
 spec:
-  replicas: 1
+  replicas: 1   # 1 sola: los consumidores RabbitMQ (carro, pagos, inventario) corren dentro de este proceso
   selector:
     matchLabels:
       app: pedidos-web
@@ -89,7 +43,7 @@ spec:
       containers:
         - name: pedidos
           image: pedidos:lab-jwt-v1
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: IfNotPresent   # imagen construida localmente con docker build
           ports:
             - containerPort: 3000
           envFrom:
@@ -97,13 +51,6 @@ spec:
                 name: pedidos-config
             - secretRef:
                 name: pedidos-secret
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: "1"
-              memory: 256Mi
           startupProbe:
             httpGet:
               path: /api/health
@@ -115,22 +62,31 @@ spec:
               path: /api/health
               port: 3000
             periodSeconds: 10
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /api/health
               port: 3000
-            timeoutSeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: pedidos-web
-  namespace: ecommerce
+  namespace: pedidos
+  labels:
+    app: pedidos-web
 spec:
-  type: LoadBalancer
+  type: LoadBalancer   # Docker Desktop lo publica en localhost
   selector:
     app: pedidos-web
   ports:
-    - port: 3000
+    - port: 3001       # 3001 y no 3000: el backend de Productos ya usa localhost:3000
       targetPort: 3000
