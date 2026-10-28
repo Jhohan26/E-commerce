@@ -2,7 +2,8 @@
 param(
     [ValidateSet('Validar', 'Instalar', 'Estado', 'Abrir')]
     [string]$Accion = 'Validar',
-    [string]$Contexto = 'docker-desktop'
+    [string]$Contexto = 'docker-desktop',
+    [switch]$SinBuild
 )
 $ErrorActionPreference = 'Stop'
 $grupo = Split-Path $PSScriptRoot -Parent
@@ -49,8 +50,10 @@ Write-Host 'Requisitos basicos revisados. Debe existir una StorageClass predeter
 if ($Accion -eq 'Validar') { exit }
 
 # No se ejecutan ni modifican archivos de otros grupos.
-& docker build -t reportes:cluster-v1 $grupo
-if ($LASTEXITCODE -ne 0) { throw 'No se pudo construir Reportes.' }
+if (-not $SinBuild) {
+    & docker build -t reportes:cluster-v1 $grupo
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudo construir Reportes.' }
+}
 Invoke-Kube apply -f (Join-Path $PSScriptRoot 'namespace.yaml')
 # El Secret pasa por memoria/stdin; no se escribe un manifiesto con credenciales.
 $secreto = & kubectl --context $Contexto -n reportes create secret generic reportes-secret "--from-env-file=$envPath" --dry-run=client -o json

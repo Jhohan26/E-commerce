@@ -1,6 +1,9 @@
 # Despliega el proyecto en Kubernetes (Docker Desktop). Ejecutar desde PowerShell:
 #   .\k8s\deploy.ps1
+#   .\k8s\deploy.ps1 -SinBuild  # reutiliza las tres imagenes locales
 # IMPORTANTE: si corres docker compose de este proyecto, detenlo antes (puertos 3000 y 8080).
+param([switch]$SinBuild)
+
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)   # raiz del proyecto
 
@@ -13,9 +16,11 @@ if (-not (Test-Path .env)) { throw "No existe el archivo .env en la raiz del pro
 
 Run kubectl config use-context docker-desktop
 
-Run docker build -t gg-backend:1.0 ./backend
-Run docker build -t gg-frontend:1.0 ./frontend
-Run docker build -f Dockerfile.worker -t gg-worker:1.0 .
+if (-not $SinBuild) {
+    Run docker build -t gg-backend:1.0 ./backend
+    Run docker build -t gg-frontend:1.0 ./frontend
+    Run docker build -f Dockerfile.worker -t gg-worker:1.0 .
+}
 
 Run kubectl apply -f k8s/00-namespace.yaml
 
@@ -29,6 +34,8 @@ Run kubectl apply -f k8s/mysql.yaml
 Run kubectl -n productos rollout status statefulset/mysql --timeout=300s
 
 Run kubectl apply -f k8s/backend.yaml -f k8s/frontend.yaml -f k8s/worker.yaml
+# Los Deployments deben recargar los tags locales cuando se reconstruye una imagen.
+Run kubectl -n productos rollout restart deployment/backend deployment/frontend deployment/worker
 Run kubectl -n productos rollout status deployment/backend --timeout=180s
 Run kubectl -n productos rollout status deployment/frontend --timeout=180s
 Run kubectl -n productos rollout status deployment/worker --timeout=180s

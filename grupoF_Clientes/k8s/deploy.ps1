@@ -1,5 +1,8 @@
 # Despliega el proyecto en Kubernetes (Docker Desktop). Ejecutar desde PowerShell:
 #   .\k8s\deploy.ps1
+#   .\k8s\deploy.ps1 -SinBuild  # reutiliza clientes-app:1.0
+param([switch]$SinBuild)
+
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)   # raíz del proyecto
 
@@ -11,7 +14,7 @@ function Run {
 if (-not (Test-Path .env)) { throw "No existe el archivo .env en la raíz del proyecto." }
 
 Run kubectl config use-context docker-desktop
-Run docker build -t clientes-app:1.0 .
+if (-not $SinBuild) { Run docker build -t clientes-app:1.0 . }
 
 Run kubectl apply -f k8s/00-namespace.yaml
 
@@ -25,6 +28,8 @@ Run kubectl apply -f k8s/mysql.yaml
 Run kubectl -n clientes rollout status statefulset/mysql --timeout=300s
 
 Run kubectl apply -f k8s/web.yaml -f k8s/worker.yaml
+# Garantiza que Pods existentes recarguen la imagen local y los Secrets actualizados.
+Run kubectl -n clientes rollout restart deployment/web deployment/worker
 Run kubectl -n clientes rollout status deployment/web --timeout=180s
 Run kubectl -n clientes rollout status deployment/worker --timeout=180s
 

@@ -1,4 +1,9 @@
 # Secretos y entorno local: JAMÁS dentro de la imagen
+.env
+.env.*
+k8s/.env
+k8s/secret.yaml
+.git/
 
 env.example
 postman/*.postman_environment.json
