@@ -1,0 +1,131 @@
+# API + interfaz web (con el consumidor de PedidoCreado) y worker RPC de Inventario.
+# Ambos usan la misma imagen (inventario-app:1.0). Los secretos los crea deploy.ps1 desde tu .env
+# (Secret inventario-env) y desde usuarios.json (Secret inventario-usuarios).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventario-config
+  namespace: inventario
+data:
+  # Redes desde las que se permite EDITAR cantidades (rangos privados: el navegador de tu PC llega
+  # desde la IP del gateway de Docker). Si defines EDICION_HOSTS en .env, tiene prioridad sobre este valor.
+  EDICION_HOSTS: "172.16.0.0/12,192.168.0.0/16,10.0.0.0/8"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventario-api
+  namespace: inventario
+  labels:
+    app: inventario-api
+spec:
+  replicas: 1   # 1 sola: el consumidor de RabbitMQ (cola_inventario) corre dentro de este proceso
+  selector:
+    matchLabels:
+      app: inventario-api
+  template:
+    metadata:
+      labels:
+        app: inventario-api
+    spec:
+      containers:
+        - name: api
+          image: inventario-app:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8005
+          envFrom:
+            - configMapRef:
+                name: inventario-config
+            - secretRef:
+                name: inventario-env      # contenido de tu .env (tiene prioridad sobre el ConfigMap)
+          env:                            # estas dos pisan lo que diga el .env (DB_HOST=localhost)
+            - name: DB_HOST
+              value: inventario-mysql
+            - name: DB_PORT
+              value: "3306"
+          startupProbe:
+            httpGet:
+              path: /api/config           # no toca la base de datos
+              port: 8005
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/config
+              port: 8005
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health               # comprueba la conexion a MySQL
+              port: 8005
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventario-api
+  namespace: inventario
+  labels:
+    app: inventario-api
+spec:
+  type: LoadBalancer   # Docker Desktop lo publica en localhost
+  selector:
+    app: inventario-api
+  ports:
+    - port: 8005
+      targetPort: 8005
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventario-worker
+  namespace: inventario
+  labels:
+    app: inventario-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventario-worker
+  template:
+    metadata:
+      labels:
+        app: inventario-worker
+    spec:
+      containers:
+        - name: worker
+          image: inventario-app:1.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "worker_inventario.py"]
+          envFrom:
+            - secretRef:
+                name: inventario-env
+          env:
+            - name: DB_HOST
+              value: inventario-mysql
+            - name: DB_PORT
+              value: "3306"
+          volumeMounts:
+            - name: usuarios
+              mountPath: /app/usuarios.json    # el worker lo lee en cada login
+              subPath: usuarios.json
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: usuarios
+          secret:
+            secretName: inventario-usuarios

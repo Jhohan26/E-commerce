@@ -1,0 +1,78 @@
+# MySQL de Inventario: imagen propia (Dockerfile.mysql) que ya trae el dump dentro.
+# Service headless: nombre DNS "inventario-mysql" (DB_HOST de la API y el worker).
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventario-mysql
+  namespace: inventario
+spec:
+  clusterIP: None
+  selector:
+    app: inventario-mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: inventario-mysql
+  namespace: inventario
+spec:
+  serviceName: inventario-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventario-mysql
+  template:
+    metadata:
+      labels:
+        app: inventario-mysql
+    spec:
+      containers:
+        - name: mysql
+          image: inventario-mysql:1.0        # construida con: docker build -f Dockerfile.mysql ...
+          imagePullPolicy: IfNotPresent
+          # Los flags (--lower-case-table-names=1, utf8mb4) vienen en el CMD de la imagen
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: inventario-env
+                  key: DB_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: inventario-env
+                  key: DB_NAME
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          # Ping por TCP: durante la importacion del dump MySQL solo escucha por socket
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\" --silent"]
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$MYSQL_ROOT_PASSWORD\" --silent"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

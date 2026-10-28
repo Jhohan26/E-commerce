@@ -1,0 +1,20 @@
+# MySQL de Inventario CON el dump dentro de la imagen.
+#   docker build -f Dockerfile.mysql -t inventario-mysql:1.0 .
+# Al crearse el volumen por primera vez, el entrypoint de MySQL ejecuta 10-importar-dump.sh,
+# que importa /dump/inventario_dump.sql (esquema + datos). La clave de root llega por
+# MYSQL_ROOT_PASSWORD en tiempo de ejecucion: el dump no contiene credenciales.
+# (El contexto lo filtra Dockerfile.mysql.dockerignore, no el .dockerignore de la aplicacion.)
+FROM mysql:8.4
+
+COPY inventario_dump.sql /dump/inventario_dump.sql
+COPY docker/importar-dump.sh /docker-entrypoint-initdb.d/10-importar-dump.sh
+
+# Quita los \r de Windows (CRLF): con ellos el script de importacion no se ejecuta en Linux
+RUN for f in /dump/inventario_dump.sql /docker-entrypoint-initdb.d/10-importar-dump.sh; do \
+      tr -d '\r' < "$f" > "$f.tmp" && mv "$f.tmp" "$f"; \
+    done \
+    && chmod 755 /docker-entrypoint-initdb.d/10-importar-dump.sh
+
+# El codigo usa "Inventario"/"PedidoProcesado" y el dump crea tablas en minusculas:
+# con lower-case-table-names=1 ambas formas funcionan (igual que en docker-compose.yml).
+CMD ["--lower-case-table-names=1", "--character-set-server=utf8mb4"]
