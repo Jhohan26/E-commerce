@@ -1,0 +1,189 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pagos-config
+  namespace: ecommerce
+data:
+  DB_HOST: pagos-mysql
+  DB_PORT: "3306"
+  DB_NAME: db_pagos
+  JWT_ALGORITHM: HS256
+  JWT_USER_CLAIM: sub
+  JWT_ROLE_CLAIM: role
+  JWT_CLIENT_CLAIM: clienteId
+  RABBITMQ_EXCHANGE_PEDIDOS: pedidos_exchange
+  RABBITMQ_EXCHANGE_PAGOS: pagos_exchange
+  AMQP_QUEUE: pagos_pedidos_queue
+  AMQP_EVENT_INPUT: PedidoCreado
+  AMQP_KEY_APPROVED: pago.aprobado
+  AMQP_KEY_REJECTED: pago.rechazado
+  AMQP_CONNECT_TIMEOUT: "10"
+  AMQP_READ_TIMEOUT: "65"
+  AMQP_HEARTBEAT: "30"
+  AMQP_CONFIRM_TIMEOUT: "5"
+  CLIENT_AUTH_QUEUE: auth.login
+  CLIENT_RPC_QUEUE: cliente.consultar
+  CLIENT_RPC_TIMEOUT: "10"
+  RECOVERY_INTERVAL: "5"
+  RECOVERY_BATCH: "100"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pagos-web
+  namespace: ecommerce
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pagos-web
+  template:
+    metadata:
+      labels:
+        app: pagos-web
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: web
+          image: pagos:cluster-v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          envFrom:
+            - configMapRef:
+                name: pagos-config
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: DB_PASSWORD
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: RABBITMQ_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: JWT_SECRET
+            - name: JWT_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: JWT_ISSUER
+            - name: CLIENT_AUTH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: CLIENT_AUTH_USER
+            - name: CLIENT_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: CLIENT_AUTH_PASSWORD
+          startupProbe:
+            httpGet:
+              path: /health.php
+              port: 80
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready.php
+              port: 80
+            timeoutSeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health.php
+              port: 80
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pagos-consumer
+  namespace: ecommerce
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pagos-consumer
+  template:
+    metadata:
+      labels:
+        app: pagos-consumer
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: consumer
+          image: pagos:cluster-v1
+          imagePullPolicy: IfNotPresent
+          command: [php, bin/console.php, consume]
+          envFrom:
+            - configMapRef:
+                name: pagos-config
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: DB_PASSWORD
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pagos-secret
+                  key: RABBITMQ_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pagos-web
+  namespace: ecommerce
+spec:
+  selector:
+    app: pagos-web
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pagos-web-local
+  namespace: ecommerce
+spec:
+  type: LoadBalancer
+  selector:
+    app: pagos-web
+  ports:
+    - port: 8086
+      targetPort: 80

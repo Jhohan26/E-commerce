@@ -2,6 +2,7 @@
 /.env
 /.env.*
 !/.env.example
+!/.env.k8s.example
 /var/
 *.log
 logs/
