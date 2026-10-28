@@ -16,7 +16,7 @@ COPY *.py ./
 COPY static/ ./static/
 
 # Usuario sin privilegios; datos/ guarda el respaldo de pedidos y pagos (se monta como volumen)
-RUN useradd --create-home reportes && mkdir -p datos && chown reportes datos
+RUN useradd --create-home --uid 1000 --user-group reportes && mkdir -p datos && chown reportes:reportes datos
 USER reportes
 
 EXPOSE 8001

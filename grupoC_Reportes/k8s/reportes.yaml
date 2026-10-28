@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reportes-config
+  namespace: reportes
+data:
+  TZ: America/Bogota
+  PEDIDOS_URL: http://pedidos-web.pedidos.svc.cluster.local:3001
+  CLIENTES_URL: http://web.clientes.svc.cluster.local:8081
+  CLIENTES_MODO: rpc
+  PRODUCTOS_MODO: rpc
+  PRODUCTOS_URL: http://backend.productos.svc.cluster.local:3000
+  # Inventario todavia no tiene Service Kubernetes en el repositorio.
+  # Se consulta por RPC; configurar esta URL cuando exista una API accesible.
+  INVENTARIO_URL: ""
+  PEDIDOS_ROL: operador
+  REFRESCO_SEG: "300"
+  RESPALDO: "1"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reportes-datos
+  namespace: reportes
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reportes
+  namespace: reportes
+spec:
+  # La memoria, el respaldo JSON y las colas requieren una sola instancia.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: reportes
+  template:
+    metadata:
+      labels:
+        app: reportes
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 15
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: reportes
+          image: reportes:cluster-v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - secretRef:
+                name: reportes-secret
+            # Estas direcciones internas prevalecen sobre localhost del .env.
+            - configMapRef:
+                name: reportes-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: datos
+              mountPath: /app/datos
+          startupProbe:
+            httpGet:
+              path: /api/estado
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /api/estado
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/estado
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: datos
+          persistentVolumeClaim:
+            claimName: reportes-datos
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reportes
+  namespace: reportes
+spec:
+  type: ClusterIP
+  selector:
+    app: reportes
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http

@@ -31,7 +31,15 @@ Abrir **http://127.0.0.1:8001/**. Notas:
 - No ejecutar a la vez `iniciar.py` y el contenedor: los dos usarían el puerto 8001 y se repartirían los mensajes de RabbitMQ.
 - Sin compose: `docker build -t reportes .` y `docker run --rm -p 8001:8001 --env-file .env -v ${PWD}/datos:/app/datos reportes`.
 
-## Cómo funciona
+## Kubernetes y computador compartido
+
+La preparación del Grupo C y el diagnóstico de integración están en
+[k8s/README.md](k8s/README.md). Incluye el despliegue de Reportes, almacenamiento
+persistente y direcciones internas de los servicios existentes. El paquete solo
+instala recursos de Reportes; la integración de todos los grupos aún requiere
+completar Inventario y Facturación y validar los contratos entre servicios.
+
+## Cómo funciona (fuentes de información)
 
 | Fuente | Cómo | Cuándo |
 |--------|------|--------|
