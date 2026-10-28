@@ -1,0 +1,172 @@
+# Notificaciones (Grupo J) para Docker Desktop. No reemplaza los manifiestos de k8s/ (namespace
+# ecommerce, usados por scripts/check-manifests.js y verify-k8s.js): es una instalacion aparte.
+# Los secretos y los valores de tu .env los crea deploy.ps1 como Secret "notificaciones-secret".
+# La base de datos es un archivo SQLite que crea la propia app en el volumen /app/data.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notificaciones-config
+  namespace: notificaciones
+data:
+  PORT: "3000"
+  DATABASE_PATH: /app/data/notificaciones.sqlite
+  # local: cuentas propias (ver deploy.ps1 -Accion Acceso). clientes: requiere el contrato JWT acordado con Clientes
+  USER_AUTH_MODE: local
+  AUTH_IDLE_SECONDS: "1800"
+  AUTH_LIFETIME_SECONDS: "28800"
+  AUTH_SECURE_COOKIE: "false"
+  RABBITMQ_REQUIRE_TLS: "true"
+  RABBITMQ_AUTH_RPC_ENABLED: "true"
+  RABBITMQ_REQUIRE_EVENT_JWT: "false"
+  RABBITMQ_QUEUE: grupo-j.notificaciones
+  RABBITMQ_PREFETCH: "10"
+  RABBITMQ_RECONNECT_MS: "5000"
+  RABBITMQ_HEARTBEAT: "30"
+  # Eventos de los demas modulos: Pedidos (fanout), Pagos (topic), Inventario (fanout), Facturacion (fanout)
+  RABBITMQ_SOURCES: '[{"exchange":"pedidos_exchange","type":"fanout","keys":[""],"events":["PedidoCreado"]},{"exchange":"pagos_exchange","type":"topic","keys":["pago.aprobado","pago.rechazado"],"events":["PagoAprobado","PagoRechazado"]},{"exchange":"inventario_exchange","type":"fanout","keys":[""],"events":["InventarioInsuficiente"]},{"exchange":"facturacion_exchange","type":"fanout","keys":[""],"events":["FacturaGenerada"]}]'
+  CLIENTES_RPC_LOGIN_QUEUE: auth.login
+  CLIENTES_RPC_QUEUE: cliente.consultar
+  CLIENTES_RPC_TIMEOUT_MS: "10000"
+  EMAIL_ENABLED: "false"
+  SMTP_HOST: smtp.gmail.com
+  SMTP_PORT: "587"
+  SMTP_SECURE: "false"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: notificaciones-data
+  namespace: notificaciones
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notificaciones
+  namespace: notificaciones
+spec:
+  replicas: 1          # SQLite y el worker SMTP requieren un unico escritor/procesador
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: notificaciones
+  template:
+    metadata:
+      labels:
+        app: notificaciones
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      # El volumen de Docker Desktop puede crearse como root: se deja escribible para el usuario node (uid 1000)
+      initContainers:
+        - name: permisos-datos
+          image: grupo-j-notificaciones:2.0.0
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "chown -R 1000:1000 /app/data"]
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN]
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      containers:
+        - name: notificaciones
+          image: grupo-j-notificaciones:2.0.0
+          imagePullPolicy: IfNotPresent   # imagen construida localmente con docker build
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: notificaciones-config
+            - secretRef:
+                name: notificaciones-secret   # tu .env (tiene prioridad sobre el ConfigMap)
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready     # falla si RabbitMQ no esta conectado
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: temporary
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: notificaciones-data
+        - name: temporary
+          emptyDir: {}
+---
+# Acceso interno para otros modulos: http://notificaciones.notificaciones.svc.cluster.local:3000
+apiVersion: v1
+kind: Service
+metadata:
+  name: notificaciones
+  namespace: notificaciones
+spec:
+  type: ClusterIP
+  selector:
+    app: notificaciones
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+# Acceso desde tu PC (Docker Desktop publica los LoadBalancer en localhost)
+apiVersion: v1
+kind: Service
+metadata:
+  name: notificaciones-local
+  namespace: notificaciones
+spec:
+  type: LoadBalancer
+  selector:
+    app: notificaciones
+  ports:
+    - name: http
+      port: 3010
+      targetPort: http
