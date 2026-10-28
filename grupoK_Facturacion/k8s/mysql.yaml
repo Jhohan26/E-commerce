@@ -1,0 +1,92 @@
+# MySQL de Facturacion: imagen propia (Dockerfile.mysql) que ya trae el esquema dentro.
+# Service headless: nombre DNS "facturacion-mysql" (DB_HOST del ConfigMap).
+apiVersion: v1
+kind: Service
+metadata:
+  name: facturacion-mysql
+  namespace: facturacion
+spec:
+  clusterIP: None
+  selector:
+    app: facturacion-mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: facturacion-mysql
+  namespace: facturacion
+spec:
+  serviceName: facturacion-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: facturacion-mysql
+  template:
+    metadata:
+      labels:
+        app: facturacion-mysql
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: mysql
+          image: facturacion-mysql:1.0      # construida con: docker build -f Dockerfile.mysql ...
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_DATABASE
+              value: facturacion
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: facturacion-secret
+                  key: DB_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: facturacion-secret
+                  key: DB_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: facturacion-secret
+                  key: MYSQL_ROOT_PASSWORD
+          volumeMounts:
+            - name: datos
+              mountPath: /var/lib/mysql
+          startupProbe:
+            tcpSocket:
+              port: 3306
+            periodSeconds: 5
+            failureThreshold: 60
+          # Lista solo cuando el usuario de la aplicacion existe y la tabla Factura fue creada por el esquema
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$MYSQL_USER" -D facturacion -e "SELECT 1 FROM Factura LIMIT 1" >/dev/null'
+            timeoutSeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: datos
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

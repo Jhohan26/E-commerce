@@ -1,0 +1,94 @@
+# API + interfaz web + consumidor de PagoAprobado (todo en un proceso). Los secretos
+# (DB_USER, DB_PASSWORD, RABBITMQ_URL) los crea deploy.ps1 como Secret "facturacion-secret".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: facturacion-config
+  namespace: facturacion
+data:
+  DB_HOST: facturacion-mysql
+  DB_PORT: "3306"
+  DB_NAME: facturacion
+  RABBITMQ_EXCHANGE_PAGOS: pagos_exchange
+  RABBITMQ_EXCHANGE_FACTURACION: facturacion_exchange
+  RABBITMQ_QUEUE: cola_facturacion
+  # Clientes desplegado en Kubernetes (namespace clientes, Service web). Si no esta, la factura
+  # se genera igual, sin nombre ni correo.
+  CLIENTES_URL: http://web.clientes.svc.cluster.local:8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: facturacion-api
+  namespace: facturacion
+  labels:
+    app: facturacion-api
+spec:
+  replicas: 1   # 1 sola: el consumidor de cola_facturacion corre dentro de este proceso
+  selector:
+    matchLabels:
+      app: facturacion-api
+  template:
+    metadata:
+      labels:
+        app: facturacion-api
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: api
+          image: facturacion-app:1.0
+          imagePullPolicy: IfNotPresent   # imagen construida localmente con docker build
+          ports:
+            - containerPort: 8007
+          envFrom:
+            - configMapRef:
+                name: facturacion-config
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef: { name: facturacion-secret, key: DB_USER }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: facturacion-secret, key: DB_PASSWORD }
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef: { name: facturacion-secret, key: RABBITMQ_URL }
+          startupProbe:
+            httpGet:
+              path: /                 # pagina estatica: no toca la base de datos
+              port: 8007
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8007
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health           # comprueba la conexion a MySQL
+              port: 8007
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: facturacion-api
+  namespace: facturacion
+  labels:
+    app: facturacion-api
+spec:
+  type: LoadBalancer   # Docker Desktop lo publica en localhost
+  selector:
+    app: facturacion-api
+  ports:
+    - port: 8007
+      targetPort: 8007

@@ -1,0 +1,14 @@
+# MySQL de Pagos CON el esquema (database/schema.sql) dentro de la imagen.
+#   docker build -f Dockerfile.mysql -t pagos-mysql:1.0 .
+# Al crearse el volumen por primera vez, el entrypoint de MySQL crea la base db_pagos y el usuario
+# de la aplicacion (MYSQL_DATABASE / MYSQL_USER / MYSQL_PASSWORD) y despues ejecuta 01-schema.sql.
+# Las claves llegan por variables de entorno en tiempo de ejecucion: la imagen no contiene credenciales.
+# (El contexto lo filtra Dockerfile.mysql.dockerignore, no el .dockerignore de la aplicacion.)
+FROM mysql:8.4
+
+COPY database/schema.sql /docker-entrypoint-initdb.d/01-schema.sql
+
+# Quita los \r de Windows (CRLF) del esquema
+RUN tr -d '\r' < /docker-entrypoint-initdb.d/01-schema.sql > /docker-entrypoint-initdb.d/01-schema.sql.tmp \
+    && mv /docker-entrypoint-initdb.d/01-schema.sql.tmp /docker-entrypoint-initdb.d/01-schema.sql \
+    && chmod 644 /docker-entrypoint-initdb.d/01-schema.sql

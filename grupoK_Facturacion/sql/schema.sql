@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS Factura (
     pedido_id      BIGINT        NOT NULL UNIQUE,
     pago_id        BIGINT        NULL,
     cliente_id     BIGINT        NULL,
+    cliente_nombre VARCHAR(255)  NULL,             -- consultado a Clientes; NULL si no respondio
+    cliente_correo VARCHAR(255)  NULL,
     fecha          DATETIME      NOT NULL,
     total          DECIMAL(14,2) NOT NULL,
     productos      TEXT          NOT NULL,         -- JSON: [{productoId, cantidad, precio}]
